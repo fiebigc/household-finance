@@ -37,12 +37,40 @@ const OWNER_MAP: Record<string, PersonaKey> = {
   christian: "christian", heli: "heli", aaro: "aaro", unto: "unto", joint: "joint",
 };
 
+/**
+ * When `balance_sek` is missing in DB (seed/import gap), show documented principal as of
+ * BALANCE_SHEET_AS_OF. See docs/BANK-DATA-WIKI.md.
+ */
+const ACCOUNT_BALANCE_FALLBACK_SEK: Record<string, number> = {
+  "bolan-prem-24500343784": -750_000,
+};
+
+/** Full row if the account was never inserted (e.g. partial seed) — keeps loan visible in balances. */
+const DEFAULT_DB_ROWS_FOR_MISSING_IDS: DbBankAccount[] = [
+  {
+    id: "bolan-prem-24500343784",
+    user_id: null,
+    source_file: null,
+    label: "Loan Prem (interest-only)",
+    balance_sek: ACCOUNT_BALANCE_FALLBACK_SEK["bolan-prem-24500343784"]!,
+    owners: ["joint"],
+    category: "mortgage_debt",
+    notes: null,
+  },
+];
+
 export function buildBankAccountsFromDb(rows: DbBankAccount[]): BankAccountRow[] {
-  return rows.map((r) => ({
+  const ids = new Set(rows.map((r) => r.id));
+  const merged = [
+    ...rows,
+    ...DEFAULT_DB_ROWS_FOR_MISSING_IDS.filter((d) => !ids.has(d.id)),
+  ];
+
+  return merged.map((r) => ({
     id: r.id,
     sourceFile: r.source_file ?? "",
     label: r.label,
-    balanceSek: r.balance_sek,
+    balanceSek: r.balance_sek ?? ACCOUNT_BALANCE_FALLBACK_SEK[r.id] ?? null,
     owners: r.owners.map((o) => OWNER_MAP[o] ?? "joint") as PersonaKey[],
     category: r.category as AccountCategory,
     notes: r.notes ?? undefined,

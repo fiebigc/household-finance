@@ -110,6 +110,13 @@ export default function App() {
 
   const seedRef = useRef(false);
   useEffect(() => {
+    // Wait until logged in: while sessionReady is false, useBankData is disabled and returns
+    // empty rows with loading=false — without this guard the effect "seeds" once with no data and
+    // never runs again after bank CSV loads (common on slow production auth).
+    if (!sessionReady) {
+      seedRef.current = false;
+      return;
+    }
     if (bank.loading || dataSeeded || seedRef.current) return;
     seedRef.current = true;
     if (bank.recurring.hasData) {
@@ -119,7 +126,7 @@ export default function App() {
     }
     setStartingBalanceSek(bank.defaultLiquidity);
     setDataSeeded(true);
-  }, [bank.loading, bank.recurring, bank.defaultLiquidity, dataSeeded, setIncomeStreams, setExpenseItems, setStartingBalanceSek, personas, setPersonas]);
+  }, [sessionReady, bank.loading, bank.recurring, bank.defaultLiquidity, dataSeeded, setIncomeStreams, setExpenseItems, setStartingBalanceSek, personas, setPersonas]);
 
   const migrateRef = useRef(false);
   useEffect(() => {

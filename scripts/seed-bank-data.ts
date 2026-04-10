@@ -49,6 +49,16 @@ function splitLine(line: string): string[] {
 
 type Row = { dateStr: string; spec: string; belopp: number; saldo: number | null };
 
+/** Use saldo from the newest booking line so account balance matches the bank (CSV order varies). */
+function latestSaldo(rows: Row[]): number | null {
+  if (!rows.length) return null;
+  let best = rows[0]!;
+  for (const r of rows) {
+    if (r.dateStr > best.dateStr) best = r;
+  }
+  return best.saldo;
+}
+
 function parseCsv(text: string): Row[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
@@ -122,7 +132,7 @@ async function main() {
       user_id: SEED_OWNER_USER_ID,
       source_file: a.file,
       label: a.label,
-      balance_sek: parsed[0]?.saldo ?? null,
+      balance_sek: latestSaldo(parsed),
       owners: a.owners,
       category: a.category,
       import_date: "2026-04-08",
@@ -175,7 +185,7 @@ async function main() {
         const msg = e instanceof Error ? e.message : String(e);
         if (msg.includes("404") || msg.includes("PGRST205")) {
           console.warn(
-            "\n⚠ bank_account_access table missing or API cache stale. Apply supabase/migrations/20260413120000_bank_account_access.sql in the Supabase SQL Editor, then run this seed again (access rows only will merge via upsert).",
+            "\n⚠ bank_account_access table missing or API cache stale. Apply migration 20260413120000_bank_account_access.sql, then run: npm run seed:bank-access (or re-run this seed after migrations).",
           );
         } else {
           throw e;
