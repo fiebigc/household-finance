@@ -147,7 +147,9 @@
     "phaseName": "esim. Vanhempainvapaa, Osa-aikatyö…",
     "addPhase": "Lisää vaihe",
     "endBalance": "Loppusaldo (24 kk)",
-    "unnamed": "Nimetön skenaario"
+    "unnamed": "Nimetön skenaario",
+    "includeDefaultExpenses": "Sisällytä oletustoistuvat menot",
+    "customExpensesPlaceholder": "Omat menot / kk"
   },
   "balances": {
     "title": "Tilit",

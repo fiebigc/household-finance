@@ -37,6 +37,8 @@ type TimelineScenario = {
   id: string;
   name: string;
   phases: ScenarioPhase[];
+  useDefaultExpenses: boolean;
+  customMonthlyExpensesSek: number;
 };
 
 // ─── Persistence ────────────────────────────────────────────────────
@@ -45,7 +47,15 @@ const STORAGE_KEY = "finance-scenarios-v2";
 function load(): TimelineScenario[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as TimelineScenario[]) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Array<Partial<TimelineScenario>>;
+    return parsed.map((s) => ({
+      id: s.id ?? crypto.randomUUID(),
+      name: s.name ?? "",
+      phases: (s.phases ?? []) as ScenarioPhase[],
+      useDefaultExpenses: s.useDefaultExpenses ?? true,
+      customMonthlyExpensesSek: Math.max(0, s.customMonthlyExpensesSek ?? 0),
+    }));
   } catch { return []; }
 }
 function persist(s: TimelineScenario[]) {
@@ -74,7 +84,7 @@ function computeMonthlyNet(
   personas: Persona[],
   pSettings: Map<string, PersonaSetting>,
   overrides: Record<string, PhaseWorkParams>,
-  baseExpenses: number,
+  monthlyBaseExpenses: number,
   incomeStreams: IncomeStream[],
 ): { gross: number; net: number; expenses: number } {
   let totalExtra = 0;
@@ -118,7 +128,7 @@ function computeMonthlyNet(
     totalNet += stockholmTabellMonthlyNetFromMonthlyGrossCombined(gross);
   }
   const totalGross = [...personaGross.values()].reduce((a, b) => a + b, 0);
-  return { gross: totalGross, net: totalNet, expenses: baseExpenses + totalExtra };
+  return { gross: totalGross, net: totalNet, expenses: monthlyBaseExpenses + totalExtra };
 }
 
 type ChartPoint = {
@@ -162,9 +172,12 @@ function projectTimeline(
     const pts: ChartPoint[] = [];
     let b = startingBalance;
     let monthCursor = 0;
+    const scenarioBaseExpenses = (sc.useDefaultExpenses ?? true)
+      ? baseExpenses
+      : Math.max(0, sc.customMonthlyExpensesSek ?? 0);
 
     for (const phase of sc.phases) {
-      const line = computeMonthlyNet(personas, pSettings, phase.params, baseExpenses, incomeStreams);
+      const line = computeMonthlyNet(personas, pSettings, phase.params, scenarioBaseExpenses, incomeStreams);
       for (let m = 0; m < phase.durationMonths; m++) {
         monthCursor++;
         const surplus = line.net - line.expenses;
@@ -183,7 +196,7 @@ function projectTimeline(
     const remaining = 24 - monthCursor;
     if (remaining > 0 && sc.phases.length > 0) {
       const lastPhase = sc.phases[sc.phases.length - 1]!;
-      const line = computeMonthlyNet(personas, pSettings, lastPhase.params, baseExpenses, incomeStreams);
+      const line = computeMonthlyNet(personas, pSettings, lastPhase.params, scenarioBaseExpenses, incomeStreams);
       for (let m = 0; m < remaining; m++) {
         monthCursor++;
         const surplus = line.net - line.expenses;
@@ -409,6 +422,8 @@ export function ScenariosTab({ incomeStreams, expenses, startingBalanceSek, pers
     const sc: TimelineScenario = {
       id: crypto.randomUUID(),
       name: "",
+      useDefaultExpenses: true,
+      customMonthlyExpensesSek: baseExpenses,
       phases: [{
         id: crypto.randomUUID(),
         label: "",
@@ -445,6 +460,8 @@ export function ScenariosTab({ incomeStreams, expenses, startingBalanceSek, pers
       id: crypto.randomUUID(),
       name: `${src.name} (copy)`,
       phases: src.phases.map((p) => ({ ...structuredClone(p), id: crypto.randomUUID() })),
+      useDefaultExpenses: src.useDefaultExpenses ?? true,
+      customMonthlyExpensesSek: src.customMonthlyExpensesSek ?? baseExpenses,
     };
     update([...scenarios, dup]);
   };
@@ -598,8 +615,36 @@ export function ScenariosTab({ incomeStreams, expenses, startingBalanceSek, pers
                       </Button>
                     </div>
 
+                    <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/40 bg-muted/20 p-2">
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={sc.useDefaultExpenses ?? true}
+                          onChange={(e) => patchScenario(sc.id, { useDefaultExpenses: e.target.checked })}
+                        />
+                        <span>{t("scenarios.includeDefaultExpenses")}</span>
+                      </label>
+                      <Input
+                        className="h-7 w-40 text-xs"
+                        inputMode="numeric"
+                        disabled={sc.useDefaultExpenses ?? true}
+                        value={sc.customMonthlyExpensesSek || ""}
+                        onChange={(e) => patchScenario(sc.id, {
+                          customMonthlyExpensesSek: Math.max(0, Number(e.target.value.replace(/\s/g, "")) || 0),
+                        })}
+                        placeholder={t("scenarios.customExpensesPlaceholder")}
+                      />
+                    </div>
+
                     {/* Summary */}
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                      <span>
+                        {t("scenarios.totalExpenses")}:{" "}
+                        <strong className="text-foreground">
+                          {fmt((sc.useDefaultExpenses ?? true) ? baseExpenses : (sc.customMonthlyExpensesSek ?? 0))}
+                        </strong>{" "}
+                        {t("common.currency")}
+                      </span>
                       <span>
                         {t("scenarios.endBalance")}: <strong className="text-foreground">{fmt(endBal)}</strong> {t("common.currency")}
                       </span>

@@ -20,8 +20,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useI18n } from "@/i18n/I18nContext";
+import { useTheme } from "@/theme/ThemeContext";
 import { useBankData } from "@/hooks/useBankData";
 import { usePersonaSettings } from "@/hooks/usePersonaSettings";
+import { useUserUiPreferences } from "@/hooks/useUserUiPreferences";
 import type { ExpenseItem, IncomeStream, Persona } from "@/lib/cashflow";
 import { totalMonthlyNetIncomeStockholm, totalMonthlyExpenses, DEFAULT_WORK_PARAMS } from "@/lib/cashflow";
 import { inferWorkParamsFromStreams, inferDaycareFromExpenses } from "@/lib/detectIncomeSource";
@@ -71,7 +73,9 @@ function applyWorkParamInference(
 
 export default function App() {
   const { user, loading: authLoading } = useAuth();
-  const { t, numberLocale } = useI18n();
+  const { t, numberLocale, locale, setLocale } = useI18n();
+  const { theme, setTheme } = useTheme();
+  useUserUiPreferences(user?.id, locale, theme, setLocale, setTheme);
   const sessionReady = !authLoading && !!user;
   const bank = useBankData(sessionReady);
   const personaSettings = usePersonaSettings(user?.id, user?.email);

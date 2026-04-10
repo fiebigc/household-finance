@@ -12,6 +12,16 @@ config();
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const SEED_OWNER_USER_ID = process.env.SEED_OWNER_USER_ID;
+/** Comma-separated auth UUIDs (e.g. partner) who may read accounts via RLS. */
+const SEED_BANK_ACCESS_USER_IDS = (process.env.SEED_BANK_ACCESS_USER_IDS ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+/**
+ * all — grant access users every seeded account (household-wide visibility).
+ * joint — only accounts whose owners array includes "joint" (household CSV rows).
+ */
+const SEED_BANK_ACCESS_SCOPE = (process.env.SEED_BANK_ACCESS_SCOPE ?? "all").toLowerCase();
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
   console.error("Missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env");
@@ -142,6 +152,38 @@ async function main() {
     total += rows.length;
     console.log(`  → ${a.label}: ${rows.length} transactions`);
   }
+
+  if (SEED_BANK_ACCESS_USER_IDS.length > 0) {
+    const accountIdsForAccess =
+      SEED_BANK_ACCESS_SCOPE === "joint"
+        ? ACCOUNTS.filter((a) => a.owners.includes("joint")).map((a) => a.id)
+        : ACCOUNTS.map((a) => a.id);
+    const accessRows: { bank_account_id: string; user_id: string }[] = [];
+    for (const uid of SEED_BANK_ACCESS_USER_IDS) {
+      if (uid === SEED_OWNER_USER_ID) continue;
+      for (const bank_account_id of accountIdsForAccess) {
+        accessRows.push({ bank_account_id, user_id: uid });
+      }
+    }
+    if (accessRows.length > 0) {
+      console.log(
+        `Inserting bank_account_access (${accessRows.length} rows, scope=${SEED_BANK_ACCESS_SCOPE})…`,
+      );
+      try {
+        await post("bank_account_access", accessRows, true);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("404") || msg.includes("PGRST205")) {
+          console.warn(
+            "\n⚠ bank_account_access table missing or API cache stale. Apply supabase/migrations/20260413120000_bank_account_access.sql in the Supabase SQL Editor, then run this seed again (access rows only will merge via upsert).",
+          );
+        } else {
+          throw e;
+        }
+      }
+    }
+  }
+
   console.log(`\nDone: ${acctRows.length} accounts, ${total} transactions.`);
 }
 

@@ -147,7 +147,9 @@
     "phaseName": "e.g. Parental leave, Part-time work…",
     "addPhase": "Add phase",
     "endBalance": "End balance (24 mo)",
-    "unnamed": "Unnamed scenario"
+    "unnamed": "Unnamed scenario",
+    "includeDefaultExpenses": "Include default recurring expenses",
+    "customExpensesPlaceholder": "Custom expenses / mo"
   },
   "balances": {
     "title": "Accounts",

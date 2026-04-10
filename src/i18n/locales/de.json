@@ -147,7 +147,9 @@
     "phaseName": "z.B. Elternzeit, Teilzeit…",
     "addPhase": "Phase hinzufügen",
     "endBalance": "Endsaldo (24 Mo)",
-    "unnamed": "Unbenanntes Szenario"
+    "unnamed": "Unbenanntes Szenario",
+    "includeDefaultExpenses": "Standard wiederkehrende Ausgaben einbeziehen",
+    "customExpensesPlaceholder": "Eigene Ausgaben / Mo"
   },
   "balances": {
     "title": "Konten",
