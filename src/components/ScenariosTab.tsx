@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { useI18n } from "@/i18n/I18nContext";
 import type { ExpenseItem, IncomeStream, Persona, PersonaWorkParams } from "@/lib/cashflow";
-import { DEFAULT_WORK_PARAMS, effectiveMonthlyGross, totalMonthlyExpenses, totalMonthlyNetIncomeStockholm } from "@/lib/cashflow";
+import { DEFAULT_WORK_PARAMS, effectiveMonthlyGross, totalMonthlyExpenses } from "@/lib/cashflow";
 import { computeBenefitBreakdown } from "@/lib/swedishBenefits2026";
 import { stockholmTabellMonthlyNetFromMonthlyGrossCombined } from "@/lib/swedenStockholmTax";
 import type { PersonaSetting } from "@/hooks/usePersonaSettings";
@@ -494,11 +494,13 @@ export function ScenariosTab({ incomeStreams, expenses, startingBalanceSek, pers
                 <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip
                   contentStyle={{ fontSize: 11 }}
-                  formatter={(value: number, name: string) => {
-                    const label = name === "baseline"
+                  formatter={(value, name) => {
+                    const n = value == null ? 0 : typeof value === "number" ? value : Number(value);
+                    const key = String(name);
+                    const label = key === "baseline"
                       ? t("scenarios.baseline")
-                      : scenarios.find((s) => s.id === name)?.name || t("scenarios.unnamed");
-                    return [fmt(value) + " " + t("common.currency"), label];
+                      : scenarios.find((s) => s.id === key)?.name || t("scenarios.unnamed");
+                    return [fmt(n) + " " + t("common.currency"), label];
                   }}
                 />
                 <Legend

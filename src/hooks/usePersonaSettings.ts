@@ -15,7 +15,7 @@ const TABLE = "user_persona_settings";
 export function usePersonaSettings(userId: string | undefined, userEmail: string | undefined) {
   const [settings, setSettings] = useState<Map<string, PersonaSetting>>(new Map());
   const [loading, setLoading] = useState(true);
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     if (!userId) {

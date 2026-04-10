@@ -3,7 +3,6 @@
  * E.g., if FKASSA is the main income → person is on parental leave.
  */
 import type { IncomeStream, PersonaWorkParams } from "@/lib/cashflow";
-import { DEFAULT_WORK_PARAMS } from "@/lib/cashflow";
 
 const PARENTAL_RE = /\bfkassa\b/i;
 const AKASSA_RE = /\ba[\s-]?kassa\b/i;
