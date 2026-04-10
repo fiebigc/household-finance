@@ -116,38 +116,46 @@ export default function App() {
 
   useEffect(() => {
     if (!sessionReady) {
-      csvMergeDoneRef.current = false;
       balanceFromBankDoneRef.current = false;
       return;
     }
     if (bank.loading || !bank.fetchComplete) return;
-
-    if (!balanceFromBankDoneRef.current) {
-      balanceFromBankDoneRef.current = true;
-      setStartingBalanceSek(bank.defaultLiquidity);
-    }
-
-    if (csvMergeDoneRef.current) return;
-    csvMergeDoneRef.current = true;
-
-    if (skipCsvImportRef.current) return;
-
-    if (bank.recurring.hasData) {
-      setIncomeStreams(bank.recurring.incomeStreams);
-      setExpenseItems(bank.recurring.expenses);
-      applyWorkParamInference(bank.recurring.incomeStreams, bank.recurring.expenses, personas, setPersonas);
-    }
+    if (balanceFromBankDoneRef.current) return;
+    balanceFromBankDoneRef.current = true;
+    setStartingBalanceSek(bank.defaultLiquidity);
   }, [
     sessionReady,
     bank.loading,
     bank.fetchComplete,
     bank.defaultLiquidity,
+    setStartingBalanceSek,
+  ]);
+
+  useEffect(() => {
+    if (!sessionReady) {
+      csvMergeDoneRef.current = false;
+      return;
+    }
+    if (bank.loading || !bank.fetchComplete) return;
+    if (csvMergeDoneRef.current) return;
+    csvMergeDoneRef.current = true;
+    if (skipCsvImportRef.current) return;
+    const { hasData, incomeStreams: inc, expenses: exp } = bank.recurring;
+    if (hasData) {
+      setIncomeStreams(inc);
+      setExpenseItems(exp);
+      applyWorkParamInference(inc, exp, personas, setPersonas);
+    }
+  }, [
+    sessionReady,
+    bank.loading,
+    bank.fetchComplete,
+    bank.transactionCount,
     bank.recurring,
     personas,
     setExpenseItems,
     setIncomeStreams,
     setPersonas,
-    setStartingBalanceSek,
   ]);
 
   const migrateRef = useRef(false);

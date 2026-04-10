@@ -11,6 +11,13 @@ import {
 } from "@/data/realWorldBalanceSheet";
 import { useI18n } from "@/i18n/I18nContext";
 
+/** Stable references when the DB returns no rows — avoids useMemo churn from `setState([])` identity changes. */
+const EMPTY_DB_ACCOUNTS: DbBankAccount[] = [];
+const EMPTY_DB_TX: DbTransaction[] = [];
+const EMPTY_RECURRING: CsvRecurringResult = { incomeStreams: [], expenses: [], hasData: false };
+const EMPTY_BALANCE_HISTORY: AccountBalancePoint[] = [];
+const EMPTY_ALL_TX: MergedTransaction[] = [];
+
 export type BankData = {
   loading: boolean;
   /** True after the first fetch cycle finishes while enabled (success or error). */
@@ -30,16 +37,16 @@ export type BankData = {
  */
 export function useBankData(enabled: boolean): BankData {
   const { numberLocale } = useI18n();
-  const [dbAccounts, setDbAccounts] = useState<DbBankAccount[]>([]);
-  const [dbTx, setDbTx] = useState<DbTransaction[]>([]);
+  const [dbAccounts, setDbAccounts] = useState<DbBankAccount[]>(EMPTY_DB_ACCOUNTS);
+  const [dbTx, setDbTx] = useState<DbTransaction[]>(EMPTY_DB_TX);
   const [loading, setLoading] = useState(true);
   const [fetchComplete, setFetchComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!enabled) {
-      setDbAccounts([]);
-      setDbTx([]);
+      setDbAccounts(EMPTY_DB_ACCOUNTS);
+      setDbTx(EMPTY_DB_TX);
       setError(null);
       setLoading(false);
       setFetchComplete(false);
@@ -62,23 +69,25 @@ export function useBankData(enabled: boolean): BankData {
 
       if (acctRes.error) {
         setError(acctRes.error.message);
-        setDbAccounts([]);
-        setDbTx([]);
+        setDbAccounts(EMPTY_DB_ACCOUNTS);
+        setDbTx(EMPTY_DB_TX);
         setLoading(false);
         setFetchComplete(true);
         return;
       }
       if (txRes.error) {
         setError(txRes.error.message);
-        setDbAccounts([]);
-        setDbTx([]);
+        setDbAccounts(EMPTY_DB_ACCOUNTS);
+        setDbTx(EMPTY_DB_TX);
         setLoading(false);
         setFetchComplete(true);
         return;
       }
 
-      setDbAccounts(acctRes.data as DbBankAccount[]);
-      setDbTx(txRes.data as DbTransaction[]);
+      const accRows = (acctRes.data ?? []) as DbBankAccount[];
+      const txRows = (txRes.data ?? []) as DbTransaction[];
+      setDbAccounts(accRows.length > 0 ? accRows : EMPTY_DB_ACCOUNTS);
+      setDbTx(txRows.length > 0 ? txRows : EMPTY_DB_TX);
       setLoading(false);
       setFetchComplete(true);
     }
@@ -90,16 +99,19 @@ export function useBankData(enabled: boolean): BankData {
   const accounts = useMemo(() => buildBankAccountsFromDb(dbAccounts), [dbAccounts]);
 
   const balanceHistory = useMemo(
-    () => (dbTx.length > 0 ? buildAccountBalanceHistory(dbTx, numberLocale).series : []),
+    () => (dbTx.length > 0 ? buildAccountBalanceHistory(dbTx, numberLocale).series : EMPTY_BALANCE_HISTORY),
     [dbTx, numberLocale],
   );
 
   const recurring = useMemo(
-    () => (dbTx.length > 0 ? extractRecurringFromBankImports(dbTx) : { incomeStreams: [], expenses: [], hasData: false }),
+    () => (dbTx.length > 0 ? extractRecurringFromBankImports(dbTx) : EMPTY_RECURRING),
     [dbTx],
   );
 
-  const allTransactions = useMemo(() => buildAllTransactions(dbTx), [dbTx]);
+  const allTransactions = useMemo(
+    () => (dbTx.length > 0 ? buildAllTransactions(dbTx) : EMPTY_ALL_TX),
+    [dbTx],
+  );
 
   const defaultLiquidity = useMemo(() => defaultLiquidityFromAccounts(accounts), [accounts]);
 
