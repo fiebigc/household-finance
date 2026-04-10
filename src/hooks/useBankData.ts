@@ -13,8 +13,11 @@ import { useI18n } from "@/i18n/I18nContext";
 
 export type BankData = {
   loading: boolean;
+  /** True after the first fetch cycle finishes while enabled (success or error). */
+  fetchComplete: boolean;
   error: string | null;
   accounts: BankAccountRow[];
+  transactionCount: number;
   balanceHistory: AccountBalancePoint[];
   recurring: CsvRecurringResult;
   allTransactions: MergedTransaction[];
@@ -30,6 +33,7 @@ export function useBankData(enabled: boolean): BankData {
   const [dbAccounts, setDbAccounts] = useState<DbBankAccount[]>([]);
   const [dbTx, setDbTx] = useState<DbTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchComplete, setFetchComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,6 +42,7 @@ export function useBankData(enabled: boolean): BankData {
       setDbTx([]);
       setError(null);
       setLoading(false);
+      setFetchComplete(false);
       return;
     }
 
@@ -45,6 +50,7 @@ export function useBankData(enabled: boolean): BankData {
 
     async function load() {
       setLoading(true);
+      setFetchComplete(false);
       setError(null);
 
       const [acctRes, txRes] = await Promise.all([
@@ -54,12 +60,27 @@ export function useBankData(enabled: boolean): BankData {
 
       if (cancelled) return;
 
-      if (acctRes.error) { setError(acctRes.error.message); setLoading(false); return; }
-      if (txRes.error) { setError(txRes.error.message); setLoading(false); return; }
+      if (acctRes.error) {
+        setError(acctRes.error.message);
+        setDbAccounts([]);
+        setDbTx([]);
+        setLoading(false);
+        setFetchComplete(true);
+        return;
+      }
+      if (txRes.error) {
+        setError(txRes.error.message);
+        setDbAccounts([]);
+        setDbTx([]);
+        setLoading(false);
+        setFetchComplete(true);
+        return;
+      }
 
       setDbAccounts(acctRes.data as DbBankAccount[]);
       setDbTx(txRes.data as DbTransaction[]);
       setLoading(false);
+      setFetchComplete(true);
     }
 
     void load();
@@ -82,5 +103,15 @@ export function useBankData(enabled: boolean): BankData {
 
   const defaultLiquidity = useMemo(() => defaultLiquidityFromAccounts(accounts), [accounts]);
 
-  return { loading, error, accounts, balanceHistory, recurring, allTransactions, defaultLiquidity };
+  return {
+    loading,
+    fetchComplete,
+    error,
+    accounts,
+    transactionCount: dbTx.length,
+    balanceHistory,
+    recurring,
+    allTransactions,
+    defaultLiquidity,
+  };
 }

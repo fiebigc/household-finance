@@ -95,48 +95,70 @@ export default function App() {
   const savedIncome = loadJson<IncomeStream[]>(LS_KEY_INCOME);
   const savedExpenses = loadJson<ExpenseItem[]>(LS_KEY_EXPENSES);
   const savedBalance = loadJson<number>(LS_KEY_BALANCE);
-  const hasLocalData = !!(savedIncome && savedIncome.length > 0);
 
   const [personas, setPersonasRaw] = useState<Persona[]>(savedPersonas ?? defaultPersonas);
   const [incomeStreams, setIncomeStreamsRaw] = useState<IncomeStream[]>(savedIncome ?? []);
   const [expenseItems, setExpenseItemsRaw] = useState<ExpenseItem[]>(savedExpenses ?? []);
   const [startingBalanceSek, setStartingBalanceSekRaw] = useState(savedBalance ?? 0);
-  const [dataSeeded, setDataSeeded] = useState(hasLocalData);
 
   const setPersonas = useCallback((p: Persona[]) => { setPersonasRaw(p); saveJson(LS_KEY_PERSONAS, p); }, []);
   const setIncomeStreams = useCallback((s: IncomeStream[]) => { setIncomeStreamsRaw(s); saveJson(LS_KEY_INCOME, s); }, []);
   const setExpenseItems = useCallback((e: ExpenseItem[]) => { setExpenseItemsRaw(e); saveJson(LS_KEY_EXPENSES, e); }, []);
   const setStartingBalanceSek = useCallback((v: number) => { setStartingBalanceSekRaw(v); saveJson(LS_KEY_BALANCE, v); }, []);
 
-  const seedRef = useRef(false);
+  /** User chose manual income/expense rows — do not overwrite from bank CSV. */
+  const skipCsvImportRef = useRef(
+    (savedIncome ?? []).some((s) => s.source === "manual")
+    || (savedExpenses ?? []).some((e) => e.source === "manual"),
+  );
+  const csvMergeDoneRef = useRef(false);
+  const balanceFromBankDoneRef = useRef(false);
+
   useEffect(() => {
-    // Wait until logged in: while sessionReady is false, useBankData is disabled and returns
-    // empty rows with loading=false — without this guard the effect "seeds" once with no data and
-    // never runs again after bank CSV loads (common on slow production auth).
     if (!sessionReady) {
-      seedRef.current = false;
+      csvMergeDoneRef.current = false;
+      balanceFromBankDoneRef.current = false;
       return;
     }
-    if (bank.loading || dataSeeded || seedRef.current) return;
-    seedRef.current = true;
+    if (bank.loading || !bank.fetchComplete) return;
+
+    if (!balanceFromBankDoneRef.current) {
+      balanceFromBankDoneRef.current = true;
+      setStartingBalanceSek(bank.defaultLiquidity);
+    }
+
+    if (csvMergeDoneRef.current) return;
+    csvMergeDoneRef.current = true;
+
+    if (skipCsvImportRef.current) return;
+
     if (bank.recurring.hasData) {
       setIncomeStreams(bank.recurring.incomeStreams);
       setExpenseItems(bank.recurring.expenses);
       applyWorkParamInference(bank.recurring.incomeStreams, bank.recurring.expenses, personas, setPersonas);
     }
-    setStartingBalanceSek(bank.defaultLiquidity);
-    setDataSeeded(true);
-  }, [sessionReady, bank.loading, bank.recurring, bank.defaultLiquidity, dataSeeded, setIncomeStreams, setExpenseItems, setStartingBalanceSek, personas, setPersonas]);
+  }, [
+    sessionReady,
+    bank.loading,
+    bank.fetchComplete,
+    bank.defaultLiquidity,
+    bank.recurring,
+    personas,
+    setExpenseItems,
+    setIncomeStreams,
+    setPersonas,
+    setStartingBalanceSek,
+  ]);
 
   const migrateRef = useRef(false);
   useEffect(() => {
-    if (bank.loading || !dataSeeded || migrateRef.current) return;
+    if (!sessionReady || bank.loading || !bank.fetchComplete || migrateRef.current) return;
     const migKey = "fin:workParamsInferred";
     if (localStorage.getItem(migKey)) return;
     migrateRef.current = true;
     applyWorkParamInference(incomeStreams, expenseItems, personas, setPersonas);
     localStorage.setItem(migKey, "1");
-  }, [bank.loading, dataSeeded, incomeStreams, expenseItems, personas, setPersonas]);
+  }, [sessionReady, bank.loading, bank.fetchComplete, incomeStreams, expenseItems, personas, setPersonas]);
 
   const liveFinances = useMemo(() => {
     const { grossScaled, net } = totalMonthlyNetIncomeStockholm(incomeStreams);
