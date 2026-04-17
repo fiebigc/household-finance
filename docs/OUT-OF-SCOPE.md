@@ -6,7 +6,7 @@ Explicitly **avoid** in the first version:
 |------|--------|
 | **Bank sync** | Manual entry only for v1. |
 | **Investment performance** | Investments are read-only; no tracking of returns or valuations. |
-| **Tax optimization** | Sweden net income only; no tax logic. |
+| **Tax optimization advisory** | No legal tax-optimization recommendations; only deterministic planning calculations. |
 | **Long forecasts** | No forecasts &gt; 12 months. |
 
 ---
@@ -15,6 +15,7 @@ Explicitly **avoid** in the first version:
 
 - Liquidity and buffer runway.
 - Income states and scenario-based affordability.
+- Swedish benefit/tax planning logic (SGI, A-kassa, foraldrapenning, ranteavdrag, barnbidrag, starta eget bidrag).
 - Goals (one-off, recurring, bucket) with priority and source.
 - Monthly transactions and month lock.
 - canAfford engine with explanation.

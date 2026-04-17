@@ -1,16 +1,13 @@
 node_modules
 dist
-.DS_Store
+
+# Secrets & local env
 .env
 .env.local
-.env.*.local
 
+.deploy-keys
+
+# OS / local
+.DS_Store
+backup/
 .cursor/
-.deploy-keys/
-.next/
-*.tsbuildinfo
-supabase/.temp/
-
-# Accidental tsc emit next to source
-vite.config.js
-vite.config.d.ts

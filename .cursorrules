@@ -1,0 +1,19 @@
+Strict Separation of Concerns:
+- All financial calculations, Swedish benefit logic, and Supabase calls must live in `src/utils/finance/` or `src/hooks/`.
+- UI components may only render data and handle user interactions.
+
+Open-Source Readiness:
+- Never hardcode personal data.
+- All household values (income, loan amounts, rates, dates) must come from `src/config/householdConfig.ts`.
+- `src/config/householdConfig.ts` must read values from environment variables and/or a Supabase profile row.
+
+Swedish Tax and Benefit Logic Is Sacred:
+- Keep SGI, A-kassa cap, foraldrapenning, ranteavdrag, and barnbidrag logic in isolated utility files.
+- Each Swedish-specific utility must expose clear typed inputs and outputs for independent unit testing.
+
+Mobile-First PWA:
+- Tailwind styling must be mobile-first and responsive by default.
+
+Date-Aware Scenarios:
+- Treat August 15 as a configurable transition date.
+- Scenario simulations must be time-phased, where income and costs change at specific dates rather than aggregate-only monthly values.

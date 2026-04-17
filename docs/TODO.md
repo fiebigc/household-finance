@@ -1,41 +1,48 @@
-# TODO
+# TODO (Canonical 6-Phase Framework)
 
-## Phase 0: Foundation
+## Phase 1: Project Architecture & Rules
 
-- [ ] Confirm domain scope: household + potential business accounts
-- [ ] Confirm legal/tax scope remains net-income only for v1
-- [ ] Finalize category list and naming conventions
-- [ ] Define base income states to support day 1
+- [x] Add root rules for separation of concerns, Swedish logic isolation, and mobile-first direction.
+- [x] Lock central household config as single source for seeded values.
+- [x] Set default transition date model (August 15) with scenario-aware behavior.
 
-## Phase 1: Data Model + Supabase
+## Phase 2: Household Data Model & Config
 
-- [ ] Translate `ENTITIES.md` into SQL schema
-- [ ] Add RLS policies for user/household isolation
-- [ ] Seed essential categories (income + cost)
-- [ ] Add month-close lock model for transactions
+- [x] Create typed `householdConfig` with two adults, two children, three loans, fixed/variable costs, and house value.
+- [x] Add realistic placeholder values only (no personal hardcoded data).
+- [x] Add LTV helper and env-based default transition date override.
 
-## Phase 2: Frontend (Vite)
+## Phase 3: Supabase Schema (Hybrid)
 
-- [ ] Scaffold app shell and navigation
-- [ ] Build transactions monthly view + close-month action
-- [ ] Build goals and target progress view
-- [ ] Build scenarios panel and controls
+- [x] Create scenario-first schema: households, profiles, loans, monthly_costs, assets, scenarios, scenario_events.
+- [x] Extend to transaction-led entities: accounts, categories, transactions, month_locks, income_states, income_components, goals.
+- [x] Add RLS policies for household isolation and shared updated_at triggers.
+- [ ] Apply schema/migrations to remote Supabase once DB connectivity is available.
+- [ ] Execute cleanup migration to drop old finance-app tables in remote DB.
 
-## Phase 3: Affordability Engine
+## Phase 4: Swedish Finance Utility Scaffolding
 
-- [ ] Implement `canAfford(expense|goal, incomeState)`
-- [ ] Add worst-case scenario check for recurring costs
-- [ ] Add one-off buffer threshold checks
-- [ ] Return explanation fields (runway, buffer_after, blocking assumption)
+- [x] Add typed utility placeholders in `src/utils/finance`:
+  - `sgiCalculator`
+  - `akassaCalculator`
+  - `foraldrapenningCalculator`
+  - `ranteavdragCalculator`
+  - `barnbidragCalculator`
+  - `startaEgetCalculator`
+  - `scenarioEngine`
+- [x] Implement utility logic with deterministic formulas and Vitest coverage (`npm test`).
 
-## Phase 4: Mobile Quality
+## Phase 5: Scenario Definitions
 
-- [ ] Validate all key screens at 360px width
-- [ ] Ensure touch-friendly controls and readable tables/cards
-- [ ] Add mobile nav and sticky key metrics row
+- [x] Add five canonical scenarios in `src/config/scenarios.ts`.
+- [x] Support `transitionDateOverride` per scenario (default Aug 15 behavior).
+- [x] Validate scenario assumptions and run plans against household/benefit logic inputs.
 
-## Phase 5: Deploy + Ops
+## Phase 6: Review, Approval, and Build
 
-- [ ] Deploy frontend to Cloudflare Pages (`finance.christianfiebig.de`)
-- [ ] Connect env vars and Supabase keys
-- [ ] Add smoke tests for dashboard and scenario simulation
+- [x] Present architecture, interfaces, schema, and scenarios for review.
+- [x] Align docs to 6-phase canonical framework and hybrid model.
+- [x] Implement Swedish finance calculation utilities (approved scope: planning approximations).
+- [x] Implement minimal UI components and connect scenario engine outputs.
+- [x] Add smoke tests for rendered scenario dashboard.
+- [ ] Run manual mobile QA at 360px in browser.

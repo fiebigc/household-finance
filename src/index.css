@@ -4,26 +4,27 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    color-scheme: light;
+    --background: 220 14% 96%;
+    --foreground: 240 6% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 240 6% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 152 71% 36%;
+    --popover-foreground: 240 6% 10%;
+    --primary: 211 100% 45%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 35%;
-    --accent: 158 64% 35%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 51%;
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 240 6% 10%;
+    --muted: 220 12% 92%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 211 100% 96%;
+    --accent-foreground: 211 100% 35%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 152 71% 36%;
-    --radius: 0.8rem;
+    --border: 220 13% 87%;
+    --input: 220 13% 87%;
+    --ring: 211 100% 45%;
+    --radius: 0.75rem;
 
     --finance-income: 152 71% 32%;
     --finance-expense: 0 72% 48%;
@@ -32,26 +33,6 @@
   }
 
   .dark {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 98%;
-    --card: 223 40% 10%;
-    --card-foreground: 210 40% 98%;
-    --popover: 223 40% 10%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 152 71% 45%;
-    --primary-foreground: 220 40% 8%;
-    --secondary: 217 27% 17%;
-    --secondary-foreground: 210 40% 96%;
-    --muted: 217 24% 15%;
-    --muted-foreground: 215 20% 70%;
-    --accent: 158 64% 38%;
-    --accent-foreground: 220 40% 8%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 217 22% 22%;
-    --input: 217 22% 22%;
-    --ring: 152 71% 45%;
-
     --finance-income: 152 71% 45%;
     --finance-expense: 0 72% 51%;
     --finance-neutral: 215 20% 70%;
@@ -63,7 +44,162 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
-    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    @apply min-h-screen bg-background font-sans text-foreground antialiased;
+    /* Bento-style canvas: soft gray field with very light vignette (reference dashboard). */
+    background-image:
+      radial-gradient(1000px 520px at 8% -8%, hsl(0 0% 100%) 0%, hsl(220 16% 96%) 52%),
+      radial-gradient(800px 420px at 100% 0%, hsl(220 25% 97%) 0%, hsl(220 14% 95%) 55%);
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply mx-auto grid max-w-[1280px] gap-3 p-2 sm:gap-4 sm:p-3 md:p-4;
+  }
+
+  /** Sticky app bar: floats over scrolling bento content; keep below dialogs (z-50+). */
+  .dashboard-sticky-header {
+    @apply sticky top-2 z-40 w-full sm:top-3;
+  }
+
+  /** 12-column bento grid (activates at lg). See docs/DESIGN.md */
+  .finance-bento {
+    @apply grid grid-cols-1 gap-4;
+  }
+
+  @media (min-width: 1024px) {
+    .finance-bento {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+
+    .bento-span-chart {
+      grid-column: span 8;
+    }
+
+    .bento-span-kpi-stack {
+      grid-column: span 4;
+    }
+
+    .bento-span-snap {
+      grid-column: span 5;
+    }
+
+    .bento-span-adults {
+      grid-column: span 7;
+    }
+
+    .bento-span-third {
+      grid-column: span 4;
+    }
+  }
+
+  .bento-span-full,
+  .bento-span-chart,
+  .bento-span-kpi-stack,
+  .bento-span-snap,
+  .bento-span-adults,
+  .bento-span-third {
+    min-width: 0;
+  }
+
+  .native-select {
+    @apply mt-1 flex h-9 w-full appearance-none rounded-[10px] border border-input bg-background/90 bg-[length:1rem] bg-[right_0.5rem_center] bg-no-repeat px-3 py-2 pr-9 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236e6e73' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+  }
+
+  .data-table {
+    @apply w-full border-collapse text-sm;
+  }
+
+  .data-table th,
+  .data-table td {
+    @apply whitespace-nowrap border-b border-border px-1.5 py-1.5 text-left;
+  }
+
+  .data-table th {
+    @apply font-medium text-muted-foreground;
+  }
+
+  .lane-drop {
+    @apply rounded-xl border border-dashed border-border bg-card/45 p-2;
+  }
+
+  .drag-item {
+    @apply mb-1.5 rounded-[10px] border border-border bg-card/95 p-1.5 shadow-sm;
+  }
+
+  .chart-wrap {
+    @apply h-[240px] w-full sm:h-[280px];
+  }
+
+  .chart-legend-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+  }
+
+  .kpi-grid {
+    @apply grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3;
+  }
+
+  .form-grid {
+    @apply grid grid-cols-1 gap-2 sm:grid-cols-3;
+  }
+
+  .lane-grid {
+    @apply grid grid-cols-1 gap-2 sm:grid-cols-3;
+  }
+
+  .balance-edit-btn {
+    @apply opacity-0 transition-opacity;
+  }
+
+  tr:hover .balance-edit-btn {
+    @apply opacity-100;
+  }
+
+  /* Compact dashboard tiles (matches earlier dashboard KPI pattern) */
+  .kpi-tile-label {
+    @apply text-[11px] text-muted-foreground;
+  }
+
+  .kpi-tile-value {
+    @apply text-sm font-semibold text-foreground;
+  }
+
+  .household-summary-strip {
+    @apply flex flex-wrap gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground;
+  }
+
+  .health-meter-track {
+    @apply relative h-2.5 w-full overflow-hidden rounded-full bg-muted;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--finance-expense) / 0.35) 0%,
+      hsl(var(--finance-runway) / 0.45) 50%,
+      hsl(var(--finance-income) / 0.4) 100%
+    );
+  }
+
+  .health-meter-thumb {
+    @apply absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-card shadow-sm;
+    left: var(--health-pct, 50%);
+  }
+
+  .recurring-flow-expense {
+    border-color: hsl(var(--finance-expense) / 0.5);
+    background-color: hsl(var(--finance-expense) / 0.08);
+  }
+
+  .recurring-flow-income {
+    border-color: hsl(var(--finance-income) / 0.45);
+    background-color: hsl(var(--finance-income) / 0.08);
+  }
+
+  .account-table-name {
+    @apply cursor-help font-medium text-foreground underline decoration-dotted decoration-muted-foreground/80 underline-offset-2;
+  }
+
+  .account-balance-cell {
+    @apply text-right tabular-nums;
   }
 }

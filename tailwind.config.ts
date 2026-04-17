@@ -1,17 +1,23 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
-const config = {
+const config: Config = {
   darkMode: ["class"],
-  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
-    container: {
-      center: true,
-      padding: "1rem",
-      screens: {
-        "2xl": "1320px",
-      },
-    },
     extend: {
+      fontFamily: {
+        sans: [
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "SF Pro Text",
+          "SF Pro Display",
+          "Segoe UI",
+          "system-ui",
+          "sans-serif",
+        ],
+        mono: ["SF Mono", "ui-monospace", "Menlo", "monospace"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -42,10 +48,6 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
-        },
         finance: {
           income: "hsl(var(--finance-income))",
           expense: "hsl(var(--finance-expense))",
@@ -58,9 +60,16 @@ const config = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      boxShadow: {
+        mac: "0 1px 2px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
+        /** Soft “floating tile” elevation (bento dashboard reference). */
+        bento:
+          "0 2px 8px rgba(15, 23, 42, 0.04), 0 12px 28px rgba(15, 23, 42, 0.07)",
+        "mac-inset": "inset 0 1px 0 rgba(255,255,255,0.6)",
+      },
     },
   },
-  plugins: [],
-} satisfies Config;
+  plugins: [tailwindcssAnimate],
+};
 
 export default config;

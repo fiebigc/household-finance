@@ -18,7 +18,7 @@ Focus: **liquidity**, **targets**, and **scenario-based affordability** — not 
   - One partner on **parental leave** (mix of paid/unpaid days), unemployed since May 2025.
   - Possible **self-employment** ("starta eget") if no job after parental leave.
 - **Need:** Model **income states**, not a single forecast.
-- **Location:** Sweden (net income only; ignore tax logic initially).
+- **Location:** Sweden (model Swedish-specific logic: SGI, A-kassa, foraldrapenning, ranteavdrag, barnbidrag, starta eget bidrag).
 
 ---
 
@@ -49,6 +49,15 @@ Focus: **liquidity**, **targets**, and **scenario-based affordability** — not 
 - **Backend:** Supabase (auth, DB, optional Edge Functions).
 - **Frontend:** Vite-based web app (React or similar).
 - **Docs:** See `docs/` for entities, accounts, goals, affordability engine, UI, and out-of-scope.
+
+## Authoritative Framework
+
+- The 6-phase architecture is the canonical implementation framework.
+- Household cardinality for v1 is fixed to **2 adults + 2 children**.
+- Data model direction is **hybrid**:
+  - Scenario-first entities for simulation (`scenarios`, `scenario_events`, household profiles, costs, assets, loans).
+  - Transaction-led entities for bookkeeping and affordability actuals (`accounts`, `transactions`, `categories`, locks).
+- Transition date defaults to **August 15** at household level, with **per-scenario override** support.
 
 ---
 
