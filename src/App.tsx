@@ -17,8 +17,6 @@ import { AppSettingsModal } from "./components/AppSettingsModal";
 import { AuthGate } from "./components/AuthGate";
 import { DashboardHealthSection } from "./components/DashboardHealthSection";
 import { MacosSwitch } from "./components/MacosSwitch";
-import { BankCsvImportCard } from "./components/BankCsvImportCard";
-import { TinkConnectCard } from "./components/TinkConnectCard";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -520,6 +518,9 @@ function AppWithSession({ user }: { user: User }) {
         setHouseholdDraft={setHouseholdDraft}
         showIndividualAccounts={showIndividualAccounts}
         setShowIndividualAccounts={setShowIndividualAccounts}
+        userId={user.id}
+        accounts={accounts}
+        onBankImportComplete={() => setMonthlySeriesRefreshKey((k) => k + 1)}
       />
 
       <Tabs
@@ -1118,13 +1119,6 @@ function AppWithSession({ user }: { user: User }) {
             </div>
             </CardContent>
           </Card>
-
-          <TinkConnectCard userId={user.id} />
-
-          <BankCsvImportCard
-            accounts={accounts}
-            onImportComplete={() => setMonthlySeriesRefreshKey((k) => k + 1)}
-          />
 
           <div className="bento-span-full grid gap-4 lg:grid-cols-12">
             <Card className="lg:col-span-5">

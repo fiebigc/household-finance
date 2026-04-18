@@ -14,14 +14,17 @@ import { hasSupabaseEnv, supabase } from "@/lib/supabase";
 import { formatUnknownError } from "@/lib/utils";
 import type { BankAccountRecord } from "@/data/bankData";
 import { runBankCsvImportWithBatch } from "@/utils/finance/bankCsvImport";
+import { cn } from "@/lib/utils";
 
 interface Props {
   accounts: BankAccountRecord[];
   /** Called after a successful import so charts can refetch Supabase-backed series. */
   onImportComplete?: () => void;
+  /** Override outer Card classes (e.g. in Settings modal). */
+  cardClassName?: string;
 }
 
-export function BankCsvImportCard({ accounts, onImportComplete }: Props) {
+export function BankCsvImportCard({ accounts, onImportComplete, cardClassName }: Props) {
   const [bankAccountId, setBankAccountId] = useState<string>("");
   const [fileName, setFileName] = useState<string>("");
   const [status, setStatus] = useState<
@@ -88,7 +91,7 @@ export function BankCsvImportCard({ accounts, onImportComplete }: Props) {
 
   if (!hasSupabaseEnv) {
     return (
-      <Card className="bento-span-full">
+      <Card className={cn(cardClassName ?? "bento-span-full")}>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Bank CSV import</CardTitle>
           <CardDescription>
@@ -100,7 +103,7 @@ export function BankCsvImportCard({ accounts, onImportComplete }: Props) {
   }
 
   return (
-    <Card className="bento-span-full">
+    <Card className={cn(cardClassName ?? "bento-span-full")}>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Bank CSV import</CardTitle>
         <CardDescription>

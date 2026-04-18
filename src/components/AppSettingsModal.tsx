@@ -11,7 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { HouseholdConfig } from "@/config/householdConfig";
+import type { BankAccountRecord } from "@/data/bankData";
+import { BankCsvImportCard } from "@/components/BankCsvImportCard";
 import { MacosSwitch } from "@/components/MacosSwitch";
+import { TinkConnectCard } from "@/components/TinkConnectCard";
 import { supabase } from "@/lib/supabase";
 
 interface Props {
@@ -21,6 +24,9 @@ interface Props {
   setHouseholdDraft: Dispatch<SetStateAction<HouseholdConfig>>;
   showIndividualAccounts: boolean;
   setShowIndividualAccounts: (v: boolean) => void;
+  userId: string | undefined;
+  accounts: BankAccountRecord[];
+  onBankImportComplete?: () => void;
 }
 
 export function AppSettingsModal({
@@ -30,6 +36,9 @@ export function AppSettingsModal({
   setHouseholdDraft,
   showIndividualAccounts,
   setShowIndividualAccounts,
+  userId,
+  accounts,
+  onBankImportComplete,
 }: Props) {
   if (!open) return null;
 
@@ -95,6 +104,21 @@ export function AppSettingsModal({
               </div>
             </CardContent>
           </Card>
+
+          <div className="mt-4">
+            <BankCsvImportCard
+              accounts={accounts}
+              onImportComplete={onBankImportComplete}
+              cardClassName="w-full border border-border/60 bg-card shadow-none"
+            />
+          </div>
+
+          <div className="mt-4">
+            <TinkConnectCard
+              userId={userId}
+              cardClassName="w-full border border-border/60 bg-card shadow-none"
+            />
+          </div>
 
           <Card className="mt-4 border-0 shadow-none">
             <CardHeader className="p-0 pb-3">

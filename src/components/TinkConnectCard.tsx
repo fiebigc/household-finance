@@ -8,9 +8,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useTinkLinkFlow } from "@/hooks/useTinkLinkFlow";
+import { cn } from "@/lib/utils";
 
 interface Props {
   userId: string | undefined;
+  /** Override outer Card classes (e.g. in Settings modal without bento grid). */
+  cardClassName?: string;
 }
 
 const STEPS = [
@@ -28,7 +31,7 @@ const STEPS = [
   },
 ];
 
-export function TinkConnectCard({ userId }: Props) {
+export function TinkConnectCard({ userId, cardClassName }: Props) {
   const {
     env,
     configured,
@@ -54,7 +57,7 @@ export function TinkConnectCard({ userId }: Props) {
   }, [resetError, startBankIdConnect]);
 
   return (
-    <Card className="bento-span-full">
+    <Card className={cn(cardClassName ?? "bento-span-full")}>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Tink + BankID</CardTitle>
         <CardDescription>
