@@ -9,6 +9,8 @@ import type { DashboardInsightsResult } from "@/utils/finance/dashboardInsights"
 interface Props {
   insights: DashboardInsightsResult;
   formatSek: (n: number) => string;
+  /** Recurring net (out − in) from the editable recurring list, SEK/month. */
+  recurringNetCashAdjustSek: number;
 }
 
 const BAROMETER_HELP =
@@ -19,6 +21,9 @@ const PAIN_POINTS_HELP =
 
 const SNAPSHOT_HELP =
   "Modeled income, surplus after recurring items, rough liquidity runway.";
+
+const MODELED_FLOW_HELP =
+  "Baseline month from the engine vs your recurring list (out − in). Same modeled month as the snapshot income line.";
 
 function headlineWithTooltip(title: string, tooltip: string) {
   return (
@@ -116,6 +121,46 @@ function PainPointsCard({ insights }: Pick<Props, "insights">) {
   );
 }
 
+function ModeledCashFlowCard({
+  insights,
+  formatSek,
+  recurringNetCashAdjustSek,
+}: Props) {
+  const month = insights.baselineMonth;
+
+  return (
+    <Card className="flex h-full flex-col">
+      <CardHeader className="pb-2 pt-4">
+        {headlineWithTooltip("Modeled cash flow", MODELED_FLOW_HELP)}
+      </CardHeader>
+      <CardContent className="flex-1 pb-4 pt-0">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+          <div className="rounded-xl border border-border/50 bg-muted/15 p-3">
+            <p className="kpi-tile-label">Income</p>
+            <p className="kpi-tile-value text-finance-income">{formatSek(month.totalIncomeSek)}</p>
+          </div>
+          <div className="rounded-xl border border-border/50 bg-muted/15 p-3">
+            <p className="kpi-tile-label">Engine net</p>
+            <p className="kpi-tile-value text-foreground">{formatSek(month.netCashflowSek)}</p>
+          </div>
+          <div className="rounded-xl border border-border/50 bg-muted/15 p-3">
+            <p className="kpi-tile-label">Recurring (out − in)</p>
+            <p className="kpi-tile-value text-foreground">{formatSek(recurringNetCashAdjustSek)}</p>
+          </div>
+          <div className="rounded-xl border border-border/50 bg-muted/15 p-3">
+            <p className="kpi-tile-label">After recurring</p>
+            <p
+              className={`kpi-tile-value ${insights.netAfterRecurringSek >= 0 ? "text-finance-income" : "text-finance-expense"}`}
+            >
+              {formatSek(insights.netAfterRecurringSek)}
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function MonthlyCashflowSnapshotCard({ insights, formatSek }: Props) {
   const { baselineMonth, netAfterRecurringSek, runwayMonths } = insights;
 
@@ -152,13 +197,14 @@ function MonthlyCashflowSnapshotCard({ insights, formatSek }: Props) {
   );
 }
 
-/** Barometer, pain points, and snapshot in a responsive 2–3 column grid. */
+/** Barometer, pain points, snapshot, and modeled flow — equal-width columns on large screens. */
 export function DashboardHealthSection(props: Props) {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
       <HouseholdBarometerCard {...props} />
       <PainPointsCard insights={props.insights} />
       <MonthlyCashflowSnapshotCard {...props} />
+      <ModeledCashFlowCard {...props} />
     </div>
   );
 }

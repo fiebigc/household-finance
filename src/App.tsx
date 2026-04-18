@@ -17,6 +17,8 @@ import { AppSettingsModal } from "./components/AppSettingsModal";
 import { AuthGate } from "./components/AuthGate";
 import { DashboardHealthSection } from "./components/DashboardHealthSection";
 import { MacosSwitch } from "./components/MacosSwitch";
+import { BankCsvImportCard } from "./components/BankCsvImportCard";
+import { TinkConnectCard } from "./components/TinkConnectCard";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -29,7 +31,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  buildMonthlySeriesFromCsv,
   defaultBankAccounts,
   defaultEntities,
   defaultRecurringCosts,
@@ -45,6 +46,7 @@ import {
   getHouseMetrics,
   type HouseholdConfig,
 } from "./config/householdConfig";
+import { useHouseholdMonthlySeries } from "./hooks/useHouseholdMonthlySeries";
 import { useScenarioSimulation } from "./hooks/useScenarioSimulation";
 import {
   deleteRecurringCostRemote,
@@ -168,8 +170,10 @@ function AppWithSession({ user }: { user: User }) {
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editingAccountValue, setEditingAccountValue] = useState<number>(0);
   const [saveStatus, setSaveStatus] = useState("");
+  const [monthlySeriesRefreshKey, setMonthlySeriesRefreshKey] = useState(0);
 
-  const currentSeries = useMemo(() => buildMonthlySeriesFromCsv(), []);
+  const { series: currentSeries, dataSource: monthlySeriesSource, loading: monthlySeriesLoading } =
+    useHouseholdMonthlySeries(monthlySeriesRefreshKey);
   const {
     scenarios,
     selectedScenarioId,
@@ -532,7 +536,16 @@ function AppWithSession({ user }: { user: User }) {
                        <div className="bento-span-full">
             <Card>
             <CardHeader className="flex flex-col gap-3 space-y-0 pb-2 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle className="text-base">Current Finances Trend (CSV based)</CardTitle>
+              <div className="space-y-0.5">
+                <CardTitle className="text-base">Current Finances Trend</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  {monthlySeriesLoading
+                    ? "Loading chart data…"
+                    : monthlySeriesSource === "supabase"
+                      ? "From imported bank transactions (Supabase)."
+                      : "Bundled sample CSVs until you import transactions."}
+                </p>
+              </div>
               <MacosSwitch
                 id="chart-show-accounts"
                 checked={showIndividualAccounts}
@@ -543,14 +556,10 @@ function AppWithSession({ user }: { user: User }) {
             <CardContent>
             <div className="chart-wrap">
               {currentChartData.length === 0 ? (
-                <div>
-                  <p className="text-muted-foreground">
-                    No CSV chart points loaded. Check bank CSV parsing/input data.
-                  </p>
-                  <p className="text-muted-foreground debug-line">
-                    debug: points={currentSeries.length}, accounts={accounts.length}
-                  </p>
-                </div>
+                <p className="text-muted-foreground">
+                  No chart points yet. Import a bank CSV (with Supabase configured) or check bundled
+                  sample data.
+                </p>
               ) : (
                 <ResponsiveContainer width="100%" height={280}>
                   <ComposedChart
@@ -670,30 +679,12 @@ function AppWithSession({ user }: { user: User }) {
             </div>
 
           <div className="bento-span-full">
-            <DashboardHealthSection insights={dashboardInsights} formatSek={formatSek} />
+            <DashboardHealthSection
+              insights={dashboardInsights}
+              formatSek={formatSek}
+              recurringNetCashAdjustSek={recurringNetCashAdjustSek}
+            />
           </div>
-
-          <Card className="bento-span-full">
-            <CardContent className="py-3.5">
-              <div className="flex flex-wrap gap-3 rounded-2xl border border-border/60 bg-muted/20 px-3 py-2.5 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">Modeled cash flow</span>
-                <span>
-                  Income {formatSek(dashboardInsights.baselineMonth.totalIncomeSek)} — engine net{" "}
-                  {formatSek(dashboardInsights.baselineMonth.netCashflowSek)} — recurring net (out − in){" "}
-                  {formatSek(recurringNetCashAdjustSek)} — after recurring{" "}
-                  <span
-                    className={
-                      dashboardInsights.netAfterRecurringSek >= 0
-                        ? "font-medium text-finance-income"
-                        : "font-medium text-finance-expense"
-                    }
-                  >
-                    {formatSek(dashboardInsights.netAfterRecurringSek)}
-                  </span>
-                </span>
-              </div>
-            </CardContent>
-          </Card>
 
           <Card className="bento-span-snap">
             <CardHeader className="pb-2">
@@ -1128,19 +1119,12 @@ function AppWithSession({ user }: { user: User }) {
             </CardContent>
           </Card>
 
-          <Card className="bento-span-full">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Tink + BankID integration</CardTitle>
-              <CardDescription>
-                Placeholder scaffold: account sync will connect through Tink later.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button type="button" disabled>
-                Connect bank via Tink (scaffold)
-              </Button>
-            </CardContent>
-          </Card>
+          <TinkConnectCard userId={user.id} />
+
+          <BankCsvImportCard
+            accounts={accounts}
+            onImportComplete={() => setMonthlySeriesRefreshKey((k) => k + 1)}
+          />
 
           <div className="bento-span-full grid gap-4 lg:grid-cols-12">
             <Card className="lg:col-span-5">

@@ -8,7 +8,9 @@
     "preview": "vite preview",
     "bootstrap:users": "node scripts/bootstrap-users.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:push": "supabase db push --yes",
+    "db:apply:bank-import": "npx supabase@latest db query --linked --file supabase/migrations/20260417140000_bank_csv_import_storage.sql --yes"
   },
   "dependencies": {
     "@radix-ui/react-separator": "^1.1.8",

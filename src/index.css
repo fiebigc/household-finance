@@ -72,6 +72,11 @@
       grid-template-columns: repeat(12, minmax(0, 1fr));
     }
 
+    /** Without this, items default to one 1/12 column — same readable width as mobile (full row). */
+    .bento-span-full {
+      grid-column: 1 / -1;
+    }
+
     .bento-span-chart {
       grid-column: span 8;
     }

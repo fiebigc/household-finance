@@ -32,9 +32,8 @@ describe("buildRecurringCostsFromCsv", () => {
     const rows = buildRecurringCostsFromCsv();
     expect(rows.length).toBeGreaterThan(3);
     const labels = rows.map((r) => r.label.toLowerCase());
-    expect(
-      labels.some((l) => l.includes("unionen") || l.includes("cursor") || l.includes("monthly")),
-    ).toBe(true);
+    // Bundled exports are fictional samples (`src/data/sample-bank-csv/`); real bank CSVs live in gitignored `docs/bank/`.
+    expect(labels.some((l) => l.includes("sample"))).toBe(true);
   });
 });
 

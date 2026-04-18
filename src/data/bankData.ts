@@ -1,10 +1,27 @@
-import christianCsv from "../../docs/bank/AccountChristian-24890618775-20260408.csv?raw";
-import sharedCsv from "../../docs/bank/AccountShared-24890598057-20260408.csv?raw";
-import householdCsv from "../../docs/bank/AccountHousehold-12110506350-20260408.csv?raw";
-import xlSavingsCsv from "../../docs/bank/AccountXLSavings-12110506342-20260408.csv?raw";
-import mastercardCsv from "../../docs/bank/MastercardGuld-24890598081-20260408.csv?raw";
+/**
+ * Bundled **sample** exports (fictional) — committed so CI / Cloudflare Pages can build.
+ * Private real exports stay in `docs/bank/` (gitignored); swap imports locally if needed.
+ */
+import christianCsv from "./sample-bank-csv/AccountChristian-sample.csv?raw";
+import sharedCsv from "./sample-bank-csv/AccountShared-sample.csv?raw";
+import householdCsv from "./sample-bank-csv/AccountHousehold-sample.csv?raw";
+import xlSavingsCsv from "./sample-bank-csv/AccountXLSavings-sample.csv?raw";
+import mastercardCsv from "./sample-bank-csv/MastercardGuld-sample.csv?raw";
+import {
+  canonicalTransactionSourceKey,
+  parseCsvRowsDetailed,
+  parseCsvTransactions,
+  type ParsedBankRow,
+} from "../utils/finance/swedishBankCsv";
+import {
+  aggregateMonthlySeriesFromTransactions,
+  type MonthlySeriesPoint,
+} from "../utils/finance/bankTransactionSeries";
 
 export type EntityType = "adult" | "child" | "company" | "shared";
+
+export type { ParsedBankRow };
+export type { MonthlySeriesPoint };
 
 export interface EntityRecord {
   id: string;
@@ -22,14 +39,6 @@ export interface BankAccountRecord {
   currentBalanceSek: number;
 }
 
-export interface MonthlySeriesPoint {
-  month: string;
-  totalIncomeSek: number;
-  totalCostSek: number;
-  netCashflowSek: number;
-  byAccountNetSek: Record<string, number>;
-}
-
 export type RecurringKind = "expense" | "income";
 
 export interface RecurringCost {
@@ -40,12 +49,6 @@ export interface RecurringCost {
   kind: RecurringKind;
   assignedEntityId: string;
   laneOrder: number;
-}
-
-interface CsvTransaction {
-  dateIso: string;
-  amountSek: number;
-  accountId: string;
 }
 
 export const ENTITY_IDS = {
@@ -162,134 +165,6 @@ export const defaultBankAccounts: BankAccountRecord[] = [
   },
 ];
 
-/** Parsed row including counterparty text (used for recurring detection). */
-export interface ParsedBankRow {
-  dateIso: string;
-  specification: string;
-  amountSek: number;
-  accountId: string;
-}
-
-function parseSek(value: string): number {
-  const normalized = value
-    .replace(/"/g, "")
-    .trim()
-    .replace(/\./g, "")
-    .replace(",", ".");
-  return Number(normalized || "0");
-}
-
-function normalizeHeader(value: string): string {
-  return value
-    .replace(/^\uFEFF/, "")
-    .replace(/"/g, "")
-    .trim()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/�/g, "")
-    .toLowerCase();
-}
-
-function parseCsvTransactions(csvRaw: string, accountId: string): CsvTransaction[] {
-  const lines = csvRaw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  if (lines.length < 2) return [];
-  const headerLine = lines[0];
-  if (!headerLine) return [];
-  const headerParts = headerLine.split(";").map((p) => normalizeHeader(p));
-  const dateIdx = headerParts.findIndex(
-    (h) => h.includes("bokforings") || (h.includes("bokf") && h.includes("dag")),
-  );
-  const amountIdx = headerParts.findIndex((h) => h.includes("belopp"));
-  const statusIdx = headerParts.findIndex((h) => h.includes("status"));
-  const rows = lines.slice(1);
-
-  if (dateIdx < 0 || amountIdx < 0) {
-    return [];
-  }
-
-  const result: CsvTransaction[] = [];
-  for (const row of rows) {
-    const parts = row.split(";").map((p) => p.trim());
-    const date = parts[dateIdx]?.replace(/"/g, "");
-    const amountRaw = parts[amountIdx];
-    const status =
-      statusIdx >= 0 ? parts[statusIdx]?.replace(/"/g, "").trim() : undefined;
-    if (!date || !amountRaw) continue;
-    const normalizedStatus = (status ?? "")
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-    // Keep row by default; only reject explicit failed/declined statuses.
-    if (
-      normalizedStatus.includes("avvisad") ||
-      normalizedStatus.includes("failed") ||
-      normalizedStatus.includes("declined")
-    ) {
-      continue;
-    }
-    result.push({
-      dateIso: date,
-      amountSek: parseSek(amountRaw),
-      accountId,
-    });
-  }
-  return result;
-}
-
-function parseCsvRowsDetailed(csvRaw: string, accountId: string): ParsedBankRow[] {
-  const lines = csvRaw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  if (lines.length < 2) return [];
-  const headerLine = lines[0];
-  if (!headerLine) return [];
-  const headerParts = headerLine.split(";").map((p) => normalizeHeader(p));
-  const dateIdx = headerParts.findIndex(
-    (h) => h.includes("bokforings") || (h.includes("bokf") && h.includes("dag")),
-  );
-  const amountIdx = headerParts.findIndex((h) => h.includes("belopp"));
-  const specIdx = headerParts.findIndex((h) => h.includes("specifik"));
-  const statusIdx = headerParts.findIndex((h) => h.includes("status"));
-  const rows = lines.slice(1);
-
-  if (dateIdx < 0 || amountIdx < 0 || specIdx < 0) {
-    return [];
-  }
-
-  const result: ParsedBankRow[] = [];
-  for (const row of rows) {
-    const parts = row.split(";").map((p) => p.trim());
-    const date = parts[dateIdx]?.replace(/"/g, "");
-    const amountRaw = parts[amountIdx];
-    const spec = parts[specIdx]?.replace(/"/g, "") ?? "";
-    const status =
-      statusIdx >= 0 ? parts[statusIdx]?.replace(/"/g, "").trim() : undefined;
-    if (!date || !amountRaw) continue;
-    const normalizedStatus = (status ?? "")
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-    if (
-      normalizedStatus.includes("avvisad") ||
-      normalizedStatus.includes("failed") ||
-      normalizedStatus.includes("declined")
-    ) {
-      continue;
-    }
-    result.push({
-      dateIso: date,
-      specification: spec,
-      amountSek: parseSek(amountRaw),
-      accountId,
-    });
-  }
-  return result;
-}
-
 function medianAbs(values: number[]): number {
   const v = values.map((x) => Math.abs(x)).sort((a, b) => a - b);
   const m = Math.floor(v.length / 2);
@@ -316,26 +191,6 @@ function amountClusterStable(absAmounts: number[]): { ok: boolean; median: numbe
   if (spread > Math.max(10, med * 0.09)) return { ok: false, median: med };
   if (coefficientOfVariation(absAmounts) > 0.055) return { ok: false, median: med };
   return { ok: true, median: med };
-}
-
-function canonicalSpecKey(raw: string): string {
-  const t = raw
-    .replace(/"/g, "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "");
-  if (!t) return "";
-  if (t.includes("cursor")) return "merchant:cursor_ai";
-  if (t.includes("amazon prime")) return "merchant:amazon_prime";
-  if (t.includes("unionen")) return "merchant:unionen";
-  if (t.includes("ownit")) return "merchant:ownit";
-  if (t.includes("folksam")) return "merchant:folksam";
-  if (t.includes("fkassa") || t.includes("f-kassa")) return "income:fkassa";
-  if (t.includes("barnbdr") || t.includes("barnbidrag")) return "income:barnbidrag";
-  if (t.startsWith("ofu ")) return "income:ofu_salary";
-  return `text:${t.slice(0, 72)}`;
 }
 
 function prettyRecurringLabel(raw: string): string {
@@ -421,7 +276,7 @@ function collectRecurringCandidates(rows: ParsedBankRow[]): RecurringCandidate[]
   const groups = new Map<string, { key: string; displayLabel: string; rows: ParsedBankRow[] }>();
 
   for (const row of rows) {
-    const key = canonicalSpecKey(row.specification);
+    const key = canonicalTransactionSourceKey(row.specification);
     if (!key) continue;
     const label = prettyRecurringLabel(row.specification);
     const existing = groups.get(key);
@@ -537,35 +392,13 @@ export function buildRecurringCostsFromCsv(): RecurringCost[] {
 export const defaultRecurringCosts: RecurringCost[] = buildRecurringCostsFromCsv();
 
 export function buildMonthlySeriesFromCsv(): MonthlySeriesPoint[] {
-  const transactions: CsvTransaction[] = [
+  const transactions = [
     ...parseCsvTransactions(christianCsv, "acc-christian"),
     ...parseCsvTransactions(sharedCsv, "acc-shared"),
     ...parseCsvTransactions(householdCsv, "acc-household"),
     ...parseCsvTransactions(xlSavingsCsv, "acc-xl-savings"),
     ...parseCsvTransactions(mastercardCsv, "acc-mastercard"),
   ];
-
-  const bucket = new Map<string, MonthlySeriesPoint>();
-  for (const tx of transactions) {
-    const month = tx.dateIso.slice(0, 7);
-    const existing = bucket.get(month) ?? {
-      month,
-      totalIncomeSek: 0,
-      totalCostSek: 0,
-      netCashflowSek: 0,
-      byAccountNetSek: {},
-    };
-    if (tx.amountSek >= 0) {
-      existing.totalIncomeSek += tx.amountSek;
-    } else {
-      existing.totalCostSek += Math.abs(tx.amountSek);
-    }
-    existing.netCashflowSek += tx.amountSek;
-    existing.byAccountNetSek[tx.accountId] =
-      (existing.byAccountNetSek[tx.accountId] ?? 0) + tx.amountSek;
-    bucket.set(month, existing);
-  }
-
-  return Array.from(bucket.values()).sort((a, b) => a.month.localeCompare(b.month));
+  return aggregateMonthlySeriesFromTransactions(transactions);
 }
 

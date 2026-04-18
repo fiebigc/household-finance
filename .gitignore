@@ -11,3 +11,6 @@ dist
 .DS_Store
 backup/
 .cursor/
+
+# Supabase CLI (linked project metadata)
+supabase/.temp/

@@ -6,7 +6,7 @@ import type {
 } from "../data/bankData";
 import { hasSupabaseEnv, supabase } from "./supabase";
 
-const DEFAULT_HOUSEHOLD_ID = "demo-household-se-001";
+export const DEFAULT_HOUSEHOLD_ID = "demo-household-se-001";
 
 export async function saveCurrentFinanceState(params: {
   entities: EntityRecord[];
