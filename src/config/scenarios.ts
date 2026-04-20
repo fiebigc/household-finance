@@ -1,11 +1,9 @@
 import type { EmploymentMode, HouseholdConfig } from "./householdConfig";
 
-export type ScenarioId =
-  | "LoanPayoff"
-  | "StartaBusiness50Now"
-  | "StartaBusiness100Later"
-  | "ReturnToAkassa"
-  | "WifeFullTime";
+/** Stable id for the first local scenario before any Supabase row exists. */
+export const INITIAL_BASELINE_SCENARIO_ID = "scenario-baseline-001";
+
+export type ScenarioId = string;
 
 export type ScenarioEventType =
   | "employment_change"
@@ -22,6 +20,28 @@ export interface ScenarioEvent {
   payload: Record<string, unknown>;
 }
 
+export type ScenarioTileCategory = "cost" | "income" | "loan" | "children" | "custom";
+
+export type ScenarioTileSourceKind =
+  | "none"
+  | "loan_interest_monthly"
+  | "recurring_net"
+  | "recurring_row"
+  /** Fixed SEK / month entered on the tile; stored in scenario JSON (Supabase). Sign follows category (cost vs income). */
+  | "custom_monthly";
+
+export interface ScenarioTile {
+  id: string;
+  name: string;
+  category: ScenarioTileCategory;
+  validFrom: string;
+  validTo: string | null;
+  sourceKind: ScenarioTileSourceKind;
+  sourceRef?: string | null;
+  /** Used when `sourceKind === "custom_monthly"`; non-negative SEK per month. */
+  customMonthlyAmountSek: number | null;
+}
+
 export interface ScenarioDefinition {
   id: ScenarioId;
   name: string;
@@ -31,6 +51,7 @@ export interface ScenarioDefinition {
   transitionDateOverride?: string;
   assumptions: string[];
   events: ScenarioEvent[];
+  tiles: ScenarioTile[];
 }
 
 export interface EmploymentChangePayload {
@@ -39,200 +60,215 @@ export interface EmploymentChangePayload {
   workingPercentage: number;
 }
 
-export const scenarios: ScenarioDefinition[] = [
-  {
-    id: "LoanPayoff",
-    name: "Pay Off Floating Loan 3",
+export function newScenarioEntityId(prefix: string): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? `${prefix}-${crypto.randomUUID()}`
+    : `${prefix}-${Date.now()}`;
+}
+
+function addMonthsToMonthKey(monthKey: string, deltaMonths: number): string {
+  const parts = monthKey.split("-").map(Number);
+  let y = parts[0] ?? 0;
+  let m = parts[1] ?? 1;
+  m += deltaMonths;
+  while (m > 12) {
+    m -= 12;
+    y += 1;
+  }
+  while (m < 1) {
+    m += 12;
+    y -= 1;
+  }
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+function lastDayOfMonthKey(monthKey: string): string {
+  const parts = monthKey.split("-").map(Number);
+  const y = parts[0] ?? 0;
+  const mo = parts[1] ?? 1;
+  const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  return `${monthKey}-${String(last).padStart(2, "0")}`;
+}
+
+function isTileCategory(v: unknown): v is ScenarioTileCategory {
+  return (
+    v === "cost" ||
+    v === "income" ||
+    v === "loan" ||
+    v === "children" ||
+    v === "custom"
+  );
+}
+
+function isTileSourceKind(v: unknown): v is ScenarioTileSourceKind {
+  return (
+    v === "none" ||
+    v === "loan_interest_monthly" ||
+    v === "recurring_net" ||
+    v === "recurring_row" ||
+    v === "custom_monthly"
+  );
+}
+
+function normalizeCustomMonthlyAmount(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === "") return null;
+  if (typeof raw === "number" && Number.isFinite(raw)) return Math.max(0, raw);
+  if (typeof raw === "string" && raw.trim() !== "") {
+    const n = Number(raw);
+    return Number.isFinite(n) ? Math.max(0, n) : null;
+  }
+  return null;
+}
+
+function normalizeTile(raw: unknown): ScenarioTile {
+  const o = raw && typeof raw === "object" ? (raw as Partial<ScenarioTile>) : {};
+  const sourceKind: ScenarioTileSourceKind = isTileSourceKind(o.sourceKind)
+    ? o.sourceKind
+    : "none";
+  let customMonthlyAmountSek = normalizeCustomMonthlyAmount(
+    (o as Partial<ScenarioTile>).customMonthlyAmountSek,
+  );
+  if (sourceKind === "custom_monthly" && customMonthlyAmountSek === null) {
+    customMonthlyAmountSek = 0;
+  }
+  if (sourceKind !== "custom_monthly") {
+    customMonthlyAmountSek = null;
+  }
+  return {
+    id: typeof o.id === "string" && o.id ? o.id : newScenarioEntityId("tile"),
+    name: typeof o.name === "string" && o.name.trim() ? o.name.trim() : "Tile",
+    category: isTileCategory(o.category) ? o.category : "custom",
+    validFrom:
+      typeof o.validFrom === "string" && /^\d{4}-\d{2}-\d{2}/.test(o.validFrom)
+        ? o.validFrom.slice(0, 10)
+        : "2026-01-01",
+    validTo:
+      o.validTo === null || o.validTo === ""
+        ? null
+        : typeof o.validTo === "string" && /^\d{4}-\d{2}-\d{2}/.test(o.validTo)
+          ? o.validTo.slice(0, 10)
+          : null,
+    sourceKind,
+    sourceRef:
+      typeof o.sourceRef === "string" && o.sourceRef.trim() ? o.sourceRef.trim() : null,
+    customMonthlyAmountSek,
+  };
+}
+
+export function scenarioFromDbRow(row: {
+  id: string;
+  name: string;
+  definition: unknown;
+}): ScenarioDefinition {
+  const d =
+    row.definition && typeof row.definition === "object"
+      ? (row.definition as Partial<ScenarioDefinition>)
+      : {};
+  const events = Array.isArray(d.events)
+    ? (d.events as ScenarioEvent[]).map((e) => ({
+        ...e,
+        scenarioId: row.id,
+      }))
+    : [];
+  const tiles = Array.isArray(d.tiles)
+    ? (d.tiles as unknown[]).map((t) => normalizeTile(t))
+    : [];
+  const assumptions = Array.isArray(d.assumptions)
+    ? (d.assumptions as string[]).filter((a) => typeof a === "string" && a.trim())
+    : [];
+  return {
+    id: row.id,
+    name: row.name?.trim() || "Scenario",
     description:
-      "Model immediate payoff of floating loan 3 and compare monthly interest savings against opportunity cost from alternative investment returns.",
-    startDate: "2026-05-01",
-    endDate: "2027-04-30",
-    transitionDateOverride: "2026-08-15",
-    assumptions: [
-      "Loan 3 principal of 266500 SEK is paid in full at scenario start.",
-      "Opportunity cost benchmark is a configurable blended portfolio return.",
-    ],
-    events: [
-      {
-        id: "loan3-payoff",
-        scenarioId: "LoanPayoff",
-        effectiveDate: "2026-05-01",
-        type: "loan_change",
-        description: "Loan 3 paid off immediately",
-        payload: {
-          loanId: "loan3",
-          principalDeltaSek: -266500,
-          newPrincipalSek: 0,
-        },
-      },
-    ],
-  },
-  {
-    id: "StartaBusiness50Now",
-    name: "Adult 1 Starts Business at 50% on August 15",
+      typeof d.description === "string"
+        ? d.description
+        : "Plan notes and exploration for this scenario.",
+    startDate:
+      typeof d.startDate === "string" && d.startDate.length >= 10
+        ? d.startDate.slice(0, 10)
+        : "2026-01-01",
+    endDate:
+      typeof d.endDate === "string" && d.endDate.length >= 10
+        ? d.endDate.slice(0, 10)
+        : "2027-12-31",
+    transitionDateOverride:
+      typeof d.transitionDateOverride === "string"
+        ? d.transitionDateOverride.slice(0, 10)
+        : undefined,
+    assumptions:
+      assumptions.length > 0
+        ? assumptions
+        : ["Restored from database; refine assumptions as needed."],
+    events,
+    tiles,
+  };
+}
+
+export function createBlankScenario(opts: {
+  id?: string;
+  name: string;
+  household: HouseholdConfig;
+}): ScenarioDefinition {
+  const id =
+    opts.id ??
+    (typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? `scenario-${crypto.randomUUID()}`
+      : `scenario-${Date.now()}`);
+  const transition = opts.household.transitionDate.slice(0, 10);
+  const startMonth = transition.slice(0, 7);
+  const endMonthKey = addMonthsToMonthKey(startMonth, 23);
+  const endDate = lastDayOfMonthKey(endMonthKey);
+  const mkTile = (
+    name: string,
+    category: ScenarioTileCategory,
+    sourceKind: ScenarioTileSourceKind,
+  ): ScenarioTile => ({
+    id: newScenarioEntityId("tile"),
+    name,
+    category,
+    validFrom: transition,
+    validTo: null,
+    sourceKind,
+    sourceRef: null,
+    customMonthlyAmountSek: null,
+  });
+  return {
+    id,
+    name: opts.name,
     description:
-      "Adult 1 starts self-employment at 50% on transition date and keeps 50% parental leave, modelling starta eget eligibility, A-kassa impact, and SGI effects.",
-    startDate: "2026-06-01",
-    endDate: "2027-05-31",
-    transitionDateOverride: "2026-08-15",
+      "Use tiles to document income, costs, loans, and children-related assumptions. Add scenario events when you need month-by-month engine changes.",
+    startDate: `${startMonth}-01`,
+    endDate,
+    transitionDateOverride: undefined,
     assumptions: [
-      "Adult 1 transitions to mixed self-employment and parental leave on August 15.",
-      "A-kassa protection and SGI continuity are evaluated by finance utilities.",
+      "Projection window starts at the first day of the transition month and runs 24 months.",
     ],
-    events: [
-      {
-        id: "adult1-starta-eget-50",
-        scenarioId: "StartaBusiness50Now",
-        effectiveDate: "2026-08-15",
-        type: "employment_change",
-        description: "Adult 1 moves to 50% self-employed and 50% parental leave",
-        payload: {
-          adultId: "adult1",
-          employmentMode: "self_employed",
-          workingPercentage: 50,
-          parentalLeavePercentage: 50,
-        } satisfies EmploymentChangePayload & { parentalLeavePercentage: number },
-      },
+    events: [],
+    tiles: [
+      mkTile("Income", "income", "none"),
+      mkTile("Costs", "cost", "recurring_net"),
+      mkTile("Loans", "loan", "loan_interest_monthly"),
+      mkTile("Children", "children", "none"),
     ],
-  },
-  {
-    id: "StartaBusiness100Later",
-    name: "Adult 1 A-kassa Then Full-Time Business",
-    description:
-      "Adult 1 enters A-kassa in August and starts full-time business after a qualifying period with full starta eget support.",
-    startDate: "2026-06-01",
-    endDate: "2027-08-31",
-    transitionDateOverride: "2026-08-15",
-    assumptions: [
-      "Adult 1 goes to A-kassa status in August before business launch.",
-      "Full starta eget support begins only after qualifying period is met.",
-    ],
-    events: [
-      {
-        id: "adult1-akassa-start",
-        scenarioId: "StartaBusiness100Later",
-        effectiveDate: "2026-08-15",
-        type: "benefit_change",
-        description: "Adult 1 starts A-kassa period",
-        payload: {
-          adultId: "adult1",
-          benefit: "a_kassa",
-          status: "active",
-        },
-      },
-      {
-        id: "adult1-business-100",
-        scenarioId: "StartaBusiness100Later",
-        effectiveDate: "2026-11-15",
-        type: "employment_change",
-        description:
-          "Adult 1 starts business at 100% with full starta eget bidrag",
-        payload: {
-          adultId: "adult1",
-          employmentMode: "self_employed",
-          workingPercentage: 100,
-          startaEgetBidrag: "full",
-        } satisfies EmploymentChangePayload & { startaEgetBidrag: string },
-      },
-    ],
-  },
-  {
-    id: "ReturnToAkassa",
-    name: "Parental Leave to A-kassa on August 15",
-    description:
-      "Adult 1 transitions from parental leave to A-kassa on August 15 to evaluate payment timing mismatch and cash flow gap risk.",
-    startDate: "2026-06-01",
-    endDate: "2027-01-31",
-    transitionDateOverride: "2026-08-15",
-    assumptions: [
-      "Last foraldrapenning and first A-kassa payment dates can be offset.",
-      "Scenario highlights liquidity buffer requirements during transition.",
-    ],
-    events: [
-      {
-        id: "adult1-parental-stop",
-        scenarioId: "ReturnToAkassa",
-        effectiveDate: "2026-08-15",
-        type: "benefit_change",
-        description: "Adult 1 parental leave benefit ends",
-        payload: {
-          adultId: "adult1",
-          benefit: "foraldrapenning",
-          status: "inactive",
-        },
-      },
-      {
-        id: "adult1-akassa-start-gap",
-        scenarioId: "ReturnToAkassa",
-        effectiveDate: "2026-08-20",
-        type: "benefit_change",
-        description: "Adult 1 A-kassa starts after waiting period",
-        payload: {
-          adultId: "adult1",
-          benefit: "a_kassa",
-          status: "active",
-        },
-      },
-    ],
-  },
-  {
-    id: "WifeFullTime",
-    name: "Adult 2 from 80% to 100%",
-    description:
-      "Model adult 2 moving from 80% to 100% now or on August 15 and track net household income delta after tax.",
-    startDate: "2026-05-01",
-    endDate: "2027-04-30",
-    transitionDateOverride: "2026-08-15",
-    assumptions: [
-      "Current base profile starts at 80% employment for adult 2.",
-      "Tax delta and net uplift are calculated by Swedish finance utilities.",
-    ],
-    events: [
-      {
-        id: "adult2-fulltime-now",
-        scenarioId: "WifeFullTime",
-        effectiveDate: "2026-05-01",
-        type: "employment_change",
-        description: "Adult 2 goes full-time immediately",
-        payload: {
-          adultId: "adult2",
-          employmentMode: "employed",
-          workingPercentage: 100,
-          variant: "now",
-        } satisfies EmploymentChangePayload & { variant: string },
-      },
-      {
-        id: "adult2-fulltime-transition",
-        scenarioId: "WifeFullTime",
-        effectiveDate: "2026-08-15",
-        type: "employment_change",
-        description: "Adult 2 goes full-time on transition date",
-        payload: {
-          adultId: "adult2",
-          employmentMode: "employed",
-          workingPercentage: 100,
-          variant: "august_15",
-        } satisfies EmploymentChangePayload & { variant: string },
-      },
-    ],
-  },
-];
+  };
+}
 
 export function getScenarioById(
-  scenarioId: ScenarioId,
+  scenarioId: string,
+  scenarioList: readonly ScenarioDefinition[],
 ): ScenarioDefinition | undefined {
-  return scenarios.find((scenario) => scenario.id === scenarioId);
+  return scenarioList.find((scenario) => scenario.id === scenarioId);
 }
 
 export function buildScenarioInput(
   config: HouseholdConfig,
-  scenarioId: ScenarioId,
+  scenarioId: string,
+  scenarioList: readonly ScenarioDefinition[],
 ): { config: HouseholdConfig; scenario: ScenarioDefinition } {
-  const scenario = getScenarioById(scenarioId);
+  const scenario = getScenarioById(scenarioId, scenarioList);
   if (!scenario) {
     throw new Error(`Unknown scenario id: ${scenarioId}`);
   }
-
   return { config, scenario };
 }
 
@@ -308,6 +344,45 @@ export function validateScenarioDefinitions(
         });
       }
     }
+
+    for (const tile of scenario.tiles) {
+      if (tile.validFrom < scenario.startDate || tile.validFrom > scenario.endDate) {
+        issues.push({
+          scenarioId: scenario.id,
+          message: `Tile "${tile.name}" validFrom must be within scenario dates.`,
+        });
+      }
+      if (
+        tile.validTo !== null &&
+        (tile.validTo < scenario.startDate || tile.validTo > scenario.endDate)
+      ) {
+        issues.push({
+          scenarioId: scenario.id,
+          message: `Tile "${tile.name}" validTo must be within scenario dates or null.`,
+        });
+      }
+      if (tile.validTo !== null && tile.validTo < tile.validFrom) {
+        issues.push({
+          scenarioId: scenario.id,
+          message: `Tile "${tile.name}" validTo must be on or after validFrom.`,
+        });
+      }
+      if (tile.sourceKind === "recurring_row" && !(tile.sourceRef && String(tile.sourceRef).trim())) {
+        issues.push({
+          scenarioId: scenario.id,
+          message: `Tile "${tile.name}" must pick a recurring row when linked value is “Single recurring row”.`,
+        });
+      }
+      if (tile.sourceKind === "custom_monthly") {
+        const n = tile.customMonthlyAmountSek;
+        if (n == null || !Number.isFinite(n) || n < 0) {
+          issues.push({
+            scenarioId: scenario.id,
+            message: `Tile "${tile.name}" needs a non-negative custom amount (SEK / month) when linked value is “Custom monthly amount”.`,
+          });
+        }
+      }
+    }
   }
 
   return issues;
@@ -316,6 +391,7 @@ export function validateScenarioDefinitions(
 export interface ScenarioRunInput {
   config: HouseholdConfig;
   scenarioId: ScenarioId;
+  scenarios: readonly ScenarioDefinition[];
 }
 
 export interface ScenarioRunPlan {
@@ -329,7 +405,7 @@ export interface ScenarioRunPlan {
  * Builds a normalized run plan that can be passed directly to the scenario engine.
  */
 export function buildScenarioRunPlan(input: ScenarioRunInput): ScenarioRunPlan {
-  const scenario = getScenarioById(input.scenarioId);
+  const scenario = getScenarioById(input.scenarioId, input.scenarios);
   if (!scenario) {
     throw new Error(`Unknown scenario id: ${input.scenarioId}`);
   }
@@ -339,5 +415,24 @@ export function buildScenarioRunPlan(input: ScenarioRunInput): ScenarioRunPlan {
     projectionStartMonth: isoDateToMonthKey(scenario.startDate),
     projectionMonths: getProjectionMonthSpan(scenario.startDate, scenario.endDate),
     events: scenario.events,
+  };
+}
+
+/** Deep copy with new scenario, event, and tile ids (for Duplicate scenario). */
+export function cloneScenarioDefinition(source: ScenarioDefinition): ScenarioDefinition {
+  const newId = newScenarioEntityId("scenario");
+  return {
+    ...source,
+    id: newId,
+    name: `${source.name} (copy)`,
+    events: source.events.map((e) => ({
+      ...e,
+      id: newScenarioEntityId("evt"),
+      scenarioId: newId,
+    })),
+    tiles: source.tiles.map((t) => ({
+      ...t,
+      id: newScenarioEntityId("tile"),
+    })),
   };
 }

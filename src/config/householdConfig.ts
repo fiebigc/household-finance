@@ -23,6 +23,8 @@ export interface ChildInvestmentAllocation {
 
 export interface ChildProfile {
   id: "child1" | "child2";
+  /** Display name; persisted in `app_household_config.config` JSON (Supabase). */
+  label: string;
   birthDate: string;
   monthlyBarnbidragSek: number;
   investmentAllocation: ChildInvestmentAllocation;
@@ -66,7 +68,7 @@ export interface HouseholdConfig {
   monthlyFixedCosts: MonthlyFixedCosts;
   monthlyVariableCosts: MonthlyVariableCosts;
   house: HouseConfig;
-  /** Typology Network AB (or similar) monthly estimate in SEK; 0 if unused. */
+  /** Optional company / sole trader monthly cash estimate in SEK; 0 if unused. */
   companyTypologyMonthlyEstimateSek: number;
 }
 
@@ -81,7 +83,7 @@ export const defaultHouseholdConfig: HouseholdConfig = {
   adults: [
     {
       id: "adult1",
-      label: "Christian",
+      label: "Adult 1",
       monthlyBruttoIncomeSek: 0,
       annualSgiSek: 480000,
       isAkassaMember: true,
@@ -90,7 +92,7 @@ export const defaultHouseholdConfig: HouseholdConfig = {
     },
     {
       id: "adult2",
-      label: "Heli",
+      label: "Adult 2",
       monthlyBruttoIncomeSek: 63250,
       annualSgiSek: 607200,
       isAkassaMember: true,
@@ -101,6 +103,7 @@ export const defaultHouseholdConfig: HouseholdConfig = {
   children: [
     {
       id: "child1",
+      label: "Child 1",
       birthDate: "2024-02-11",
       monthlyBarnbidragSek: 1250,
       investmentAllocation: {
@@ -111,6 +114,7 @@ export const defaultHouseholdConfig: HouseholdConfig = {
     },
     {
       id: "child2",
+      label: "Child 2",
       birthDate: "2025-10-03",
       monthlyBarnbidragSek: 1250,
       investmentAllocation: {
@@ -164,17 +168,79 @@ export const defaultHouseholdConfig: HouseholdConfig = {
   companyTypologyMonthlyEstimateSek: 0,
 };
 
+function envTrimmed(key: string): string | undefined {
+  const raw = (import.meta.env as Record<string, string | undefined> | undefined)?.[key];
+  return typeof raw === "string" && raw.trim() ? raw.trim() : undefined;
+}
+
 /**
  * Source of household values. In production this should be hydrated from .env
  * defaults and then overridden by a Supabase profile row.
  */
 export function getHouseholdConfig(): HouseholdConfig {
-  const transitionDateFromEnv =
-    import.meta.env?.VITE_TRANSITION_DATE ?? defaultHouseholdConfig.transitionDate;
+  const d = defaultHouseholdConfig;
+  const transitionDateFromEnv = envTrimmed("VITE_TRANSITION_DATE") ?? d.transitionDate;
 
   return {
-    ...defaultHouseholdConfig,
+    ...d,
     transitionDate: transitionDateFromEnv,
+    adults: [
+      { ...d.adults[0], label: envTrimmed("VITE_ADULT_1_LABEL") ?? d.adults[0].label },
+      { ...d.adults[1], label: envTrimmed("VITE_ADULT_2_LABEL") ?? d.adults[1].label },
+    ],
+    children: [
+      { ...d.children[0], label: envTrimmed("VITE_CHILD_1_LABEL") ?? d.children[0].label },
+      { ...d.children[1], label: envTrimmed("VITE_CHILD_2_LABEL") ?? d.children[1].label },
+    ],
+  };
+}
+
+/** Merge persisted household JSON onto defaults (stable tuples, new fields). */
+export function normalizeHouseholdFromRemote(
+  remote: Partial<HouseholdConfig> | HouseholdConfig,
+): HouseholdConfig {
+  const d = defaultHouseholdConfig;
+  const loansOk =
+    Array.isArray(remote.loans) && remote.loans.length === 3
+      ? (remote.loans as HouseholdConfig["loans"])
+      : d.loans;
+  return {
+    ...d,
+    ...remote,
+    householdId: remote.householdId ?? d.householdId,
+    transitionDate: remote.transitionDate ?? d.transitionDate,
+    adults: [
+      { ...d.adults[0], ...remote.adults?.[0], id: "adult1" },
+      { ...d.adults[1], ...remote.adults?.[1], id: "adult2" },
+    ],
+    children: [
+      {
+        ...d.children[0],
+        ...remote.children?.[0],
+        id: "child1",
+        label: (() => {
+          const raw = remote.children?.[0]?.label;
+          if (typeof raw === "string" && raw.trim()) return raw.trim();
+          return d.children[0].label;
+        })(),
+      },
+      {
+        ...d.children[1],
+        ...remote.children?.[1],
+        id: "child2",
+        label: (() => {
+          const raw = remote.children?.[1]?.label;
+          if (typeof raw === "string" && raw.trim()) return raw.trim();
+          return d.children[1].label;
+        })(),
+      },
+    ],
+    loans: loansOk,
+    monthlyFixedCosts: { ...d.monthlyFixedCosts, ...remote.monthlyFixedCosts },
+    monthlyVariableCosts: { ...d.monthlyVariableCosts, ...remote.monthlyVariableCosts },
+    house: { ...d.house, ...remote.house },
+    companyTypologyMonthlyEstimateSek:
+      remote.companyTypologyMonthlyEstimateSek ?? d.companyTypologyMonthlyEstimateSek,
   };
 }
 

@@ -18,6 +18,15 @@ export const FORALDERPENNING_DAILY_CAP_SEK = 1078;
 
 export const CALENDAR_DAYS_PER_MONTH = 30;
 
+/** Planning-only: max föräldradagar per child (double days etc. not modeled). */
+export const PARENTAL_LEAVE_DAYS_QUOTA_PER_CHILD_PLANNING = 240;
+
+/**
+ * Default employee share of ITP/tjänstepension “orange kuvert” style accrual as % of monthly brutto
+ * (planning ballpark only — not an official Pensionsmyndigheten statement).
+ */
+export const ORANGE_KUVERT_EMPLOYEE_ACCRUAL_RATE_DEFAULT = 0.045;
+
 /** A-kassa: max income basis per month (SEK) before replacement. */
 export const AKASSA_MAX_MONTHLY_BASIS_SEK = 34_000;
 

@@ -59,7 +59,7 @@ export function TinkConnectCard({ userId, cardClassName }: Props) {
   return (
     <Card className={cn(cardClassName ?? "bento-span-full")}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Tink + BankID</CardTitle>
+        <CardTitle>Tink + BankID</CardTitle>
         <CardDescription>
           Connect Swedish banks via Tink; BankID is completed in Tink’s hosted flow.
         </CardDescription>

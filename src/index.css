@@ -62,6 +62,78 @@
     @apply sticky top-2 z-40 w-full sm:top-3;
   }
 
+  /**
+   * Per-card bento surfaces (mixed light/dark on the same page).
+   * Tokens mirror shadcn HSL components; scoped via data-bento-surface on the Card root.
+   */
+  [data-bento-surface="dark"] {
+    color-scheme: dark;
+    --card: 222 14% 9%;
+    --card-foreground: 210 20% 98%;
+    --border: 217 15% 22%;
+    --muted: 217 15% 17%;
+    --muted-foreground: 215 12% 72%;
+    --secondary: 217 15% 15%;
+    --secondary-foreground: 210 20% 98%;
+    --accent: 217 20% 18%;
+    --accent-foreground: 210 20% 98%;
+    --input: 217 15% 24%;
+    --ring: 212 95% 55%;
+    --popover: 222 14% 11%;
+    --popover-foreground: 210 20% 98%;
+  }
+
+  [data-bento-surface="slate"] {
+    color-scheme: light;
+    --card: 217 19% 96%;
+    --card-foreground: 222 47% 11%;
+    --border: 217 16% 88%;
+    --muted: 215 20% 92%;
+    --muted-foreground: 215 16% 38%;
+    --secondary: 214 20% 93%;
+    --secondary-foreground: 222 40% 13%;
+    --accent: 214 32% 91%;
+    --accent-foreground: 222 47% 11%;
+    --input: 217 16% 88%;
+    --ring: 221 83% 53%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+  }
+
+  [data-bento-surface="ocean"] {
+    color-scheme: light;
+    --card: 199 45% 97%;
+    --card-foreground: 202 55% 14%;
+    --border: 199 38% 88%;
+    --muted: 198 40% 93%;
+    --muted-foreground: 200 18% 38%;
+    --secondary: 198 35% 92%;
+    --secondary-foreground: 202 50% 16%;
+    --accent: 199 50% 90%;
+    --accent-foreground: 202 55% 14%;
+    --input: 199 35% 86%;
+    --ring: 199 89% 42%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 202 55% 14%;
+  }
+
+  [data-bento-surface="rose"] {
+    color-scheme: light;
+    --card: 340 45% 98%;
+    --card-foreground: 340 30% 16%;
+    --border: 340 30% 90%;
+    --muted: 340 28% 94%;
+    --muted-foreground: 340 12% 40%;
+    --secondary: 340 25% 93%;
+    --secondary-foreground: 340 30% 18%;
+    --accent: 340 40% 92%;
+    --accent-foreground: 340 35% 18%;
+    --input: 340 28% 88%;
+    --ring: 340 75% 48%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 340 30% 16%;
+  }
+
   /** 12-column bento grid (activates at lg). See docs/DESIGN.md */
   .finance-bento {
     @apply grid grid-cols-1 gap-4;
@@ -95,6 +167,15 @@
 
     .bento-span-third {
       grid-column: span 4;
+    }
+
+    /**
+     * Scenarios tab: 8+4 split left the chart tall but the “Scenario & exploration” column too narrow
+     * on desktop (tiles + forms). Stack chart + controls each full-width from lg up.
+     */
+    .finance-bento--scenarios .bento-span-chart,
+    .finance-bento--scenarios .bento-span-kpi-stack {
+      grid-column: 1 / -1;
     }
   }
 
@@ -134,7 +215,13 @@
   }
 
   .chart-wrap {
-    @apply h-[240px] w-full sm:h-[280px];
+    @apply relative h-[240px] w-full overflow-visible sm:h-[280px];
+  }
+
+  /* Let hover tooltips extend past the SVG box (Recharts defaults can clip). */
+  .chart-wrap .recharts-responsive-container,
+  .chart-wrap .recharts-wrapper {
+    overflow: visible !important;
   }
 
   .chart-legend-scroll {
@@ -162,6 +249,10 @@
     @apply opacity-100;
   }
 
+  tr:focus-within .balance-edit-btn {
+    @apply opacity-100;
+  }
+
   /* Compact dashboard tiles (matches earlier dashboard KPI pattern) */
   .kpi-tile-label {
     @apply text-[11px] text-muted-foreground;
@@ -185,9 +276,20 @@
     );
   }
 
+  /** Filled segment (0–score) so the bar reads as a meter, not only a wandering thumb. */
+  .health-meter-fill {
+    @apply pointer-events-none absolute inset-y-0 left-0 rounded-full;
+    background-color: hsl(var(--foreground) / 0.12);
+    max-width: 100%;
+  }
+
+  /**
+   * Thumb uses --health-pct (e.g. 72%). Clamp keeps the translated circle inside the track
+   * (overflow-hidden + translate -50% used to clip at 0 and 100).
+   */
   .health-meter-thumb {
-    @apply absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-card shadow-sm;
-    left: var(--health-pct, 50%);
+    @apply absolute top-1/2 z-[1] size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-card shadow-sm;
+    left: clamp(0.5rem, var(--health-pct, 50%), calc(100% - 0.5rem));
   }
 
   .recurring-flow-expense {

@@ -5,7 +5,7 @@ describe("computeBankTransactionDedupeKey", () => {
   it("is stable for identical logical rows", async () => {
     const params = {
       householdId: "demo-household-se-001",
-      bankAccountId: "acc-christian",
+      bankAccountId: "acc-adult-1-primary",
       bookedDateIso: "2026-03-15",
       amountSek: -1200.5,
       specification: "Sample grocery",
@@ -19,7 +19,7 @@ describe("computeBankTransactionDedupeKey", () => {
   it("differs when booking date changes", async () => {
     const base = {
       householdId: "demo-household-se-001",
-      bankAccountId: "acc-christian",
+      bankAccountId: "acc-adult-1-primary",
       amountSek: -1200.5,
       specification: "Sample grocery",
     };

@@ -3,6 +3,8 @@ import {
   buildMonthlySeriesFromCsv,
   buildRecurringCostsFromCsv,
   defaultBankAccounts,
+  entityIsReferenced,
+  ENTITY_IDS,
 } from "./bankData";
 
 describe("buildMonthlySeriesFromCsv", () => {
@@ -24,6 +26,13 @@ describe("buildMonthlySeriesFromCsv", () => {
       defaultBankAccounts.some((account) => account.id in point.byAccountNetSek),
     );
     expect(anyPointWithAccount).toBe(true);
+  });
+});
+
+describe("entityIsReferenced", () => {
+  it("detects accounts or recurring rows using an entity", () => {
+    expect(entityIsReferenced(ENTITY_IDS.SHARED, defaultBankAccounts, [])).toBe(true);
+    expect(entityIsReferenced("entity-unused", defaultBankAccounts, [])).toBe(false);
   });
 });
 

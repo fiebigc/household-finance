@@ -21,6 +21,8 @@ export function AuthGate({ children }: Props) {
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  /** Stored on the Supabase user as `user_metadata.display_name` after a successful password sign-in. */
+  const [preferredDisplayName, setPreferredDisplayName] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isRecoveryFlow, setIsRecoveryFlow] = useState(false);
@@ -175,6 +177,16 @@ export function AuthGate({ children }: Props) {
                 autoComplete="current-password"
               />
             </div>
+            <div className="space-y-1">
+              <Label htmlFor="auth-display-name">Display name (optional)</Label>
+              <Input
+                id="auth-display-name"
+                value={preferredDisplayName}
+                onChange={(e) => setPreferredDisplayName(e.target.value)}
+                autoComplete="name"
+                placeholder="Saved to your Supabase profile after sign-in"
+              />
+            </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-2">
             <div className="grid w-full gap-2 sm:grid-cols-3">
@@ -186,7 +198,21 @@ export function AuthGate({ children }: Props) {
                     email,
                     password,
                   });
-                  setStatus(error ? error.message : "Signed in.");
+                  if (error) {
+                    setStatus(error.message);
+                    return;
+                  }
+                  const name = preferredDisplayName.trim();
+                  if (name.length > 0) {
+                    const { error: metaError } = await client.auth.updateUser({
+                      data: { display_name: name },
+                    });
+                    if (metaError) {
+                      setStatus(`Signed in, but display name was not saved: ${metaError.message}`);
+                      return;
+                    }
+                  }
+                  setStatus("Signed in.");
                 }}
               >
                 Sign in

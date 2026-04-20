@@ -1,11 +1,18 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import type { BentoCardSurfaceTheme } from "@/config/bentoCardSurfaces";
 
-const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  /** Scoped bento tile palette (inherits page theme when omitted or `light`). */
+  bentoSurface?: BentoCardSurfaceTheme;
+}
+
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
+  ({ className, bentoSurface = "light", ...props }, ref) => (
     <div
       ref={ref}
+      data-bento-surface={bentoSurface === "light" ? undefined : bentoSurface}
       className={cn(
         "rounded-[22px] border border-border/70 bg-card text-card-foreground shadow-bento backdrop-blur-xl backdrop-saturate-[1.25] dark:border-border/80 dark:bg-card/85",
         className,
@@ -30,7 +37,7 @@ const CardTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <h3
     ref={ref}
-    className={cn("text-[0.95rem] font-semibold leading-none tracking-tight", className)}
+    className={cn("text-sm font-semibold leading-snug tracking-tight", className)}
     {...props}
   />
 ));

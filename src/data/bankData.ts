@@ -2,11 +2,11 @@
  * Bundled **sample** exports (fictional) — committed so CI / Cloudflare Pages can build.
  * Private real exports stay in `docs/bank/` (gitignored); swap imports locally if needed.
  */
-import christianCsv from "./sample-bank-csv/AccountChristian-sample.csv?raw";
+import adult1BankCsv from "./sample-bank-csv/AccountSampleAdult1.csv?raw";
 import sharedCsv from "./sample-bank-csv/AccountShared-sample.csv?raw";
 import householdCsv from "./sample-bank-csv/AccountHousehold-sample.csv?raw";
 import xlSavingsCsv from "./sample-bank-csv/AccountXLSavings-sample.csv?raw";
-import mastercardCsv from "./sample-bank-csv/MastercardGuld-sample.csv?raw";
+import creditCardSampleCsv from "./sample-bank-csv/CreditCardSample.csv?raw";
 import {
   canonicalTransactionSourceKey,
   parseCsvRowsDetailed,
@@ -17,6 +17,7 @@ import {
   aggregateMonthlySeriesFromTransactions,
   type MonthlySeriesPoint,
 } from "../utils/finance/bankTransactionSeries";
+import type { RecurringFlowCategoryId } from "../utils/finance/recurringFlowCategory";
 
 export type EntityType = "adult" | "child" | "company" | "shared";
 
@@ -49,45 +50,95 @@ export interface RecurringCost {
   kind: RecurringKind;
   assignedEntityId: string;
   laneOrder: number;
+  /** UI / planning bucket; stored as `spending_category_id` in Supabase. */
+  categoryId: RecurringFlowCategoryId;
+  /** Inclusive schedule start for this line; null = not set. */
+  validFrom: string | null;
+  /** Inclusive schedule end; null = open-ended. */
+  validTo: string | null;
 }
 
+export function entityIsReferenced(
+  entityId: string,
+  accounts: readonly BankAccountRecord[],
+  costs: readonly RecurringCost[],
+): boolean {
+  return (
+    accounts.some((a) => a.ownerEntityId === entityId) ||
+    costs.some((c) => c.assignedEntityId === entityId)
+  );
+}
+
+/** Stable opaque ids for bundled sample data (no personal names in strings). */
 export const ENTITY_IDS = {
-  HELI: "entity-heli",
-  CHRISTIAN: "entity-christian",
-  AARO: "entity-aaro",
-  UNTO: "entity-unto",
-  TYPOLOGY: "entity-typology-network-ab",
+  ADULT_1: "entity-adult-1",
+  ADULT_2: "entity-adult-2",
+  CHILD_1: "entity-child-1",
+  CHILD_2: "entity-child-2",
+  COMPANY: "entity-company-sample",
   SHARED: "entity-shared",
 } as const;
 
+/** Maps household config slots to `app_entities` ids (same as bundled defaults). */
+export type HouseholdMemberSlot = "adult1" | "adult2" | "child1" | "child2";
+
+const SLOT_ENTITY_ID: Record<HouseholdMemberSlot, string> = {
+  adult1: ENTITY_IDS.ADULT_1,
+  adult2: ENTITY_IDS.ADULT_2,
+  child1: ENTITY_IDS.CHILD_1,
+  child2: ENTITY_IDS.CHILD_2,
+};
+
+const SLOT_DEFAULT_LABEL: Record<HouseholdMemberSlot, string> = {
+  adult1: "Adult 1",
+  adult2: "Adult 2",
+  child1: "Child 1",
+  child2: "Child 2",
+};
+
+/** Prefer the name stored on the entity row (Supabase); fall back to household config label. */
+export function entityNameForHouseholdSlot(
+  entities: readonly EntityRecord[],
+  slot: HouseholdMemberSlot,
+  configLabelFallback: string,
+): string {
+  const id = SLOT_ENTITY_ID[slot];
+  const fromDb = entities.find((e) => e.id === id)?.name?.trim();
+  if (fromDb) return fromDb;
+  const cfg = configLabelFallback.trim();
+  if (cfg) return cfg;
+  return SLOT_DEFAULT_LABEL[slot];
+}
+
 export const defaultEntities: EntityRecord[] = [
-  { id: ENTITY_IDS.HELI, name: "Heli", type: "adult", notes: "" },
-  { id: ENTITY_IDS.CHRISTIAN, name: "Christian", type: "adult", notes: "" },
-  { id: ENTITY_IDS.AARO, name: "Aaro", type: "child", notes: "" },
-  { id: ENTITY_IDS.UNTO, name: "Unto", type: "child", notes: "" },
+  { id: ENTITY_IDS.ADULT_2, name: "Adult 2", type: "adult", notes: "" },
+  { id: ENTITY_IDS.ADULT_1, name: "Adult 1", type: "adult", notes: "" },
+  { id: ENTITY_IDS.CHILD_1, name: "Child 1", type: "child", notes: "" },
+  { id: ENTITY_IDS.CHILD_2, name: "Child 2", type: "child", notes: "" },
   {
-    id: ENTITY_IDS.TYPOLOGY,
-    name: "Typology Network AB",
+    id: ENTITY_IDS.COMPANY,
+    name: "Sample company",
     type: "company",
     notes: "",
   },
-  { id: ENTITY_IDS.SHARED, name: "Shared", type: "shared", notes: "" },
+  { id: ENTITY_IDS.SHARED, name: "Shared household", type: "shared", notes: "" },
 ];
 
+/** Sample clearing account `24890618775` is parsed from `sample-bank-csv/AccountSampleAdult1.csv` (was historically exported as “AccountChristian…”). */
 export const defaultBankAccounts: BankAccountRecord[] = [
   {
-    id: "acc-christian",
-    name: "Account Christian",
+    id: "acc-adult-1-primary",
+    name: "Checking (adult 1)",
     accountNumber: "24890618775",
-    ownerEntityId: ENTITY_IDS.CHRISTIAN,
+    ownerEntityId: ENTITY_IDS.ADULT_1,
     category: "bank",
     currentBalanceSek: 13312.27,
   },
   {
-    id: "acc-aaro-investment",
-    name: "Aaro Investment",
+    id: "acc-child-1-investment",
+    name: "Investment (child 1)",
     accountNumber: "12430942445",
-    ownerEntityId: ENTITY_IDS.AARO,
+    ownerEntityId: ENTITY_IDS.CHILD_1,
     category: "bank",
     currentBalanceSek: 1250,
   },
@@ -140,26 +191,26 @@ export const defaultBankAccounts: BankAccountRecord[] = [
     currentBalanceSek: -266500,
   },
   {
-    id: "acc-june",
-    name: "June",
+    id: "acc-adult-1-fund",
+    name: "Fund savings (adult 1)",
     accountNumber: "13800152584",
-    ownerEntityId: ENTITY_IDS.CHRISTIAN,
+    ownerEntityId: ENTITY_IDS.ADULT_1,
     category: "bank",
     currentBalanceSek: 0.02,
   },
   {
-    id: "acc-mastercard",
-    name: "Mastercard Guld",
+    id: "acc-adult-1-credit",
+    name: "Credit card (sample)",
     accountNumber: "24890598081",
-    ownerEntityId: ENTITY_IDS.CHRISTIAN,
+    ownerEntityId: ENTITY_IDS.ADULT_1,
     category: "credit",
     currentBalanceSek: -3493.25,
   },
   {
-    id: "acc-sparkonto",
-    name: "Sparkonto",
+    id: "acc-adult-1-savings",
+    name: "Savings account (adult 1)",
     accountNumber: "12190637430",
-    ownerEntityId: ENTITY_IDS.CHRISTIAN,
+    ownerEntityId: ENTITY_IDS.ADULT_1,
     category: "bank",
     currentBalanceSek: 0,
   },
@@ -351,6 +402,9 @@ function candidatesToRecurringCosts(
         kind,
         assignedEntityId: c.assignedEntityId,
         laneOrder,
+        categoryId: "other",
+        validFrom: null,
+        validTo: null,
       });
     });
   }
@@ -369,11 +423,11 @@ function candidatesToRecurringCosts(
  */
 export function buildRecurringCostsFromCsv(): RecurringCost[] {
   const allRows: ParsedBankRow[] = [
-    ...parseCsvRowsDetailed(christianCsv, "acc-christian"),
+    ...parseCsvRowsDetailed(adult1BankCsv, "acc-adult-1-primary"),
     ...parseCsvRowsDetailed(sharedCsv, "acc-shared"),
     ...parseCsvRowsDetailed(householdCsv, "acc-household"),
     ...parseCsvRowsDetailed(xlSavingsCsv, "acc-xl-savings"),
-    ...parseCsvRowsDetailed(mastercardCsv, "acc-mastercard"),
+    ...parseCsvRowsDetailed(creditCardSampleCsv, "acc-adult-1-credit"),
   ];
 
   const expenseRows = allRows.filter((r) => !isExcludedBankRow(r));
@@ -393,11 +447,11 @@ export const defaultRecurringCosts: RecurringCost[] = buildRecurringCostsFromCsv
 
 export function buildMonthlySeriesFromCsv(): MonthlySeriesPoint[] {
   const transactions = [
-    ...parseCsvTransactions(christianCsv, "acc-christian"),
+    ...parseCsvTransactions(adult1BankCsv, "acc-adult-1-primary"),
     ...parseCsvTransactions(sharedCsv, "acc-shared"),
     ...parseCsvTransactions(householdCsv, "acc-household"),
     ...parseCsvTransactions(xlSavingsCsv, "acc-xl-savings"),
-    ...parseCsvTransactions(mastercardCsv, "acc-mastercard"),
+    ...parseCsvTransactions(creditCardSampleCsv, "acc-adult-1-credit"),
   ];
   return aggregateMonthlySeriesFromTransactions(transactions);
 }

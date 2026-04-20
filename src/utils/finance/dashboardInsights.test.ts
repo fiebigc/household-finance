@@ -22,6 +22,23 @@ describe("computeFinancialHealthScore", () => {
     });
     expect(a.score).toBeGreaterThan(b.score);
   });
+
+  it("clamps extreme net/income so tiny modeled income does not spike the score", () => {
+    const extreme = computeFinancialHealthScore({
+      incomeSek: 100,
+      netAfterRecurringSek: 50_000,
+      ltvRatio: 0.4,
+      scenarioLowestNet: null,
+    });
+    const sane = computeFinancialHealthScore({
+      incomeSek: 80_000,
+      netAfterRecurringSek: 44_000,
+      ltvRatio: 0.4,
+      scenarioLowestNet: null,
+    });
+    expect(extreme.score).toBeLessThanOrEqual(100);
+    expect(extreme.score).toBe(sane.score);
+  });
 });
 
 describe("recurringNetOutflowSek", () => {

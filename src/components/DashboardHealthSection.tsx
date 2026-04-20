@@ -4,6 +4,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type {
+  BentoCardSurfaceId,
+  BentoCardSurfaceTheme,
+} from "@/config/bentoCardSurfaces";
 import type { DashboardInsightsResult } from "@/utils/finance/dashboardInsights";
 
 interface Props {
@@ -11,6 +15,7 @@ interface Props {
   formatSek: (n: number) => string;
   /** Recurring net (out − in) from the editable recurring list, SEK/month. */
   recurringNetCashAdjustSek: number;
+  surfaceFor: (id: BentoCardSurfaceId) => BentoCardSurfaceTheme;
 }
 
 const BAROMETER_HELP =
@@ -28,7 +33,7 @@ const MODELED_FLOW_HELP =
 function headlineWithTooltip(title: string, tooltip: string) {
   return (
     <CardTitle
-      className="w-fit cursor-help border-b border-dotted border-muted-foreground/55 text-base leading-tight"
+      className="w-fit cursor-help border-b border-dotted border-muted-foreground/55 leading-tight"
       title={tooltip}
     >
       {title}
@@ -36,13 +41,20 @@ function headlineWithTooltip(title: string, tooltip: string) {
   );
 }
 
-export function HouseholdBarometerCard({ insights, formatSek }: Props) {
+export function HouseholdBarometerCard({
+  insights,
+  formatSek,
+  surfaceFor,
+}: Props) {
   const { baselineMonth, healthScore, healthLabel } = insights;
   const pct = Math.min(100, Math.max(0, healthScore));
   const barometerTooltip = `${BAROMETER_HELP} Current modeled income: ${formatSek(baselineMonth.totalIncomeSek)}.`;
 
   return (
-    <Card className="flex h-full flex-col">
+    <Card
+      bentoSurface={surfaceFor("health_barometer")}
+      className="flex h-full flex-col"
+    >
       <CardHeader className="pb-2 pt-4">
         {headlineWithTooltip("Household barometer", barometerTooltip)}
       </CardHeader>
@@ -50,13 +62,15 @@ export function HouseholdBarometerCard({ insights, formatSek }: Props) {
         <div
           className="health-meter-track"
           style={{ ["--health-pct" as string]: `${pct}%` }}
-          role="img"
+          role="meter"
           aria-valuenow={healthScore}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={`Financial health ${healthScore} out of 100`}
+          aria-valuetext={`${healthScore} out of 100, ${healthLabel}`}
+          aria-label={`Household financial health ${healthScore} out of 100`}
         >
-          <span className="health-meter-thumb" />
+          <div className="health-meter-fill" style={{ width: `${pct}%` }} aria-hidden />
+          <span className="health-meter-thumb" aria-hidden />
         </div>
         <div className="flex items-baseline justify-between gap-2">
           <p className="kpi-tile-value text-2xl tabular-nums text-foreground">
@@ -70,9 +84,15 @@ export function HouseholdBarometerCard({ insights, formatSek }: Props) {
   );
 }
 
-function PainPointsCard({ insights }: Pick<Props, "insights">) {
+function PainPointsCard({
+  insights,
+  surfaceFor,
+}: Pick<Props, "insights" | "surfaceFor">) {
   return (
-    <Card className="flex h-full flex-col">
+    <Card
+      bentoSurface={surfaceFor("health_pain_points")}
+      className="flex h-full flex-col"
+    >
       <CardHeader className="pb-2 pt-4">
         {headlineWithTooltip("Pain points and suggested fixes", PAIN_POINTS_HELP)}
       </CardHeader>
@@ -125,11 +145,15 @@ function ModeledCashFlowCard({
   insights,
   formatSek,
   recurringNetCashAdjustSek,
+  surfaceFor,
 }: Props) {
   const month = insights.baselineMonth;
 
   return (
-    <Card className="flex h-full flex-col">
+    <Card
+      bentoSurface={surfaceFor("health_modeled")}
+      className="flex h-full flex-col"
+    >
       <CardHeader className="pb-2 pt-4">
         {headlineWithTooltip("Modeled cash flow", MODELED_FLOW_HELP)}
       </CardHeader>
@@ -161,11 +185,18 @@ function ModeledCashFlowCard({
   );
 }
 
-function MonthlyCashflowSnapshotCard({ insights, formatSek }: Props) {
+function MonthlyCashflowSnapshotCard({
+  insights,
+  formatSek,
+  surfaceFor,
+}: Props) {
   const { baselineMonth, netAfterRecurringSek, runwayMonths } = insights;
 
   return (
-    <Card className="flex h-full flex-col">
+    <Card
+      bentoSurface={surfaceFor("health_snapshot")}
+      className="flex h-full flex-col"
+    >
       <CardHeader className="pb-2 pt-4">
         {headlineWithTooltip("Monthly cashflow snapshot", SNAPSHOT_HELP)}
       </CardHeader>
@@ -202,7 +233,7 @@ export function DashboardHealthSection(props: Props) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
       <HouseholdBarometerCard {...props} />
-      <PainPointsCard insights={props.insights} />
+      <PainPointsCard insights={props.insights} surfaceFor={props.surfaceFor} />
       <MonthlyCashflowSnapshotCard {...props} />
       <ModeledCashFlowCard {...props} />
     </div>

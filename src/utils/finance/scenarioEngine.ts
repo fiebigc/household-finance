@@ -9,7 +9,40 @@ export interface MonthCashflowProjection {
   totalFixedCostsSek: number;
   totalVariableCostsSek: number;
   netCashflowSek: number;
+  /** Starting liquidity plus cumulative net up to and including this month (scenario runway path). */
+  cumulativeLiquiditySek: number;
   appliedEventIds: string[];
+}
+
+/** Monthly add-ons to modeled income / variable “envelope” costs (SEK/mo), not persisted to household config. */
+export interface ScenarioEntityAdjustments {
+  adult1IncomeDeltaSek: number;
+  adult1CostDeltaSek: number;
+  adult2IncomeDeltaSek: number;
+  adult2CostDeltaSek: number;
+  companyIncomeDeltaSek: number;
+}
+
+export const ZERO_SCENARIO_ENTITY_ADJUSTMENTS: ScenarioEntityAdjustments = {
+  adult1IncomeDeltaSek: 0,
+  adult1CostDeltaSek: 0,
+  adult2IncomeDeltaSek: 0,
+  adult2CostDeltaSek: 0,
+  companyIncomeDeltaSek: 0,
+};
+
+export const DEFAULT_SCENARIO_STARTING_LIQUIDITY_SEK = 220_000;
+
+/**
+ * Anchors are usually month-0 modeled values from Current Finances; user edits shift every month
+ * by (edited − anchor) for income/loan interest, while recurring is a flat monthly add to variable costs.
+ */
+export interface ScenarioExplorationFromAnchors {
+  loanInterestMonthlySek: number;
+  loanInterestAnchorSek: number;
+  incomeMonthlySek: number;
+  incomeAnchorSek: number;
+  recurringNetMonthlySek: number;
 }
 
 export interface ScenarioEngineInput {
@@ -17,6 +50,10 @@ export interface ScenarioEngineInput {
   events: ScenarioEvent[];
   projectionStartMonth: string;
   projectionMonths: number;
+  entityAdjustments?: ScenarioEntityAdjustments;
+  /** Buffer (SEK) before month 1; each row adds monthly net to this path. */
+  startingLiquiditySek?: number;
+  exploration?: ScenarioExplorationFromAnchors | null;
 }
 
 export interface ScenarioEngineResult {
@@ -24,6 +61,15 @@ export interface ScenarioEngineResult {
   summary: {
     cumulativeNetCashflowSek: number;
     lowestMonthlyNetCashflowSek: number;
+    startingLiquiditySek: number;
+    minCumulativeLiquiditySek: number;
+    /** 1-based month index from projection start when liquidity first hits ≤ 0, or null if never. */
+    monthsUntilDepleted: number | null;
+    /**
+     * Months the starting buffer would last if every month matched the worst projected net (burn only).
+     * Null when worst month is not a loss.
+     */
+    worstMonthBurnRunwayMonths: number | null;
   };
 }
 
@@ -67,10 +113,56 @@ function sumFixedCostsFromConfig(c: HouseholdConfig): number {
   );
 }
 
-function sumLoanInterestMonthly(c: HouseholdConfig): number {
+export function sumLoanInterestMonthly(c: HouseholdConfig): number {
   return c.loans.reduce((sum, loan) => {
     return sum + (loan.principalSek * (loan.annualInterestRatePct / 100)) / 12;
   }, 0);
+}
+
+/** One month of modeled income, loan interest, non-loan fixed, and variable envelopes (before exploration shifts). */
+export function computeScenarioMonthCore(
+  householdConfig: HouseholdConfig,
+  events: ScenarioEvent[],
+  monthKeyYYYYMM: string,
+  incomeAdjSek: number,
+  variableAdjSek: number,
+): {
+  totalIncomeSek: number;
+  loanInterestSek: number;
+  nonLoanFixedSek: number;
+  variableCostsSek: number;
+} {
+  const config = buildConfigAtEndOfMonth(householdConfig, events, monthKeyYYYYMM);
+  return {
+    totalIncomeSek: totalIncome(config) + incomeAdjSek,
+    loanInterestSek: sumLoanInterestMonthly(config),
+    nonLoanFixedSek: sumFixedCostsFromConfig(config),
+    variableCostsSek: sumVariableCosts(config) + variableAdjSek,
+  };
+}
+
+/** Month-0 anchors for exploration sliders (Current Finances–aligned scenario start). */
+export function scenarioExplorationAnchorsFromMonth0(params: {
+  householdConfig: HouseholdConfig;
+  events: ScenarioEvent[];
+  projectionStartMonth: string;
+  entityAdjustments?: ScenarioEntityAdjustments;
+}): { loanInterestAnchorSek: number; incomeAnchorSek: number } {
+  const adj = params.entityAdjustments ?? ZERO_SCENARIO_ENTITY_ADJUSTMENTS;
+  const incomeAdj =
+    adj.adult1IncomeDeltaSek + adj.adult2IncomeDeltaSek + adj.companyIncomeDeltaSek;
+  const variableAdj = adj.adult1CostDeltaSek + adj.adult2CostDeltaSek;
+  const core = computeScenarioMonthCore(
+    params.householdConfig,
+    params.events,
+    params.projectionStartMonth,
+    incomeAdj,
+    variableAdj,
+  );
+  return {
+    loanInterestAnchorSek: core.loanInterestSek,
+    incomeAnchorSek: core.totalIncomeSek,
+  };
 }
 
 function sumVariableCosts(c: HouseholdConfig): number {
@@ -110,7 +202,8 @@ function estimateAdultMonthlyIncome(adult: AdultProfile): number {
 
 function totalIncome(c: HouseholdConfig): number {
   const adults = c.adults.reduce((s, a) => s + estimateAdultMonthlyIncome(a), 0);
-  return adults + childrenBarnbidragMonthly(c);
+  const company = Math.max(0, c.companyTypologyMonthlyEstimateSek);
+  return adults + childrenBarnbidragMonthly(c) + company;
 }
 
 function applyEvent(config: HouseholdConfig, event: ScenarioEvent): void {
@@ -215,23 +308,58 @@ export function runScenarioEngine(input: ScenarioEngineInput): ScenarioEngineRes
   const projections: MonthCashflowProjection[] = [];
   let cumulative = 0;
   let lowest = Number.POSITIVE_INFINITY;
+  const adj = input.entityAdjustments ?? ZERO_SCENARIO_ENTITY_ADJUSTMENTS;
+  const starting =
+    typeof input.startingLiquiditySek === "number" && Number.isFinite(input.startingLiquiditySek)
+      ? input.startingLiquiditySek
+      : DEFAULT_SCENARIO_STARTING_LIQUIDITY_SEK;
+
+  const incomeAdj =
+    adj.adult1IncomeDeltaSek +
+    adj.adult2IncomeDeltaSek +
+    adj.companyIncomeDeltaSek;
+  const variableAdj = adj.adult1CostDeltaSek + adj.adult2CostDeltaSek;
+
+  let cumulativeLiquidity = starting;
+  let minLiquidity = starting;
+  let monthsUntilDepleted: number | null = null;
+
+  const exploration = input.exploration ?? null;
 
   for (let i = 0; i < input.projectionMonths; i++) {
     const monthKey = addCalendarMonths(input.projectionStartMonth, i);
-    const config = buildConfigAtEndOfMonth(
+    const core = computeScenarioMonthCore(
       input.householdConfig,
       input.events,
       monthKey,
+      incomeAdj,
+      variableAdj,
     );
 
-    const totalIncomeSek = totalIncome(config);
-    const totalFixedCostsSek =
-      sumFixedCostsFromConfig(config) + sumLoanInterestMonthly(config);
-    const totalVariableCostsSek = sumVariableCosts(config);
+    let totalIncomeSek = core.totalIncomeSek;
+    let loanInterestEff = core.loanInterestSek;
+    let totalVariableCostsSek = core.variableCostsSek;
+    let totalFixedCostsSek = core.nonLoanFixedSek + loanInterestEff;
+
+    if (exploration) {
+      totalIncomeSek =
+        core.totalIncomeSek + (exploration.incomeMonthlySek - exploration.incomeAnchorSek);
+      loanInterestEff =
+        core.loanInterestSek +
+        (exploration.loanInterestMonthlySek - exploration.loanInterestAnchorSek);
+      totalFixedCostsSek = core.nonLoanFixedSek + loanInterestEff;
+      totalVariableCostsSek = core.variableCostsSek + exploration.recurringNetMonthlySek;
+    }
+
     const netCashflowSek =
       totalIncomeSek - totalFixedCostsSek - totalVariableCostsSek;
 
     cumulative += netCashflowSek;
+    cumulativeLiquidity += netCashflowSek;
+    if (cumulativeLiquidity < minLiquidity) minLiquidity = cumulativeLiquidity;
+    if (monthsUntilDepleted === null && cumulativeLiquidity <= 0) {
+      monthsUntilDepleted = i + 1;
+    }
     if (netCashflowSek < lowest) lowest = netCashflowSek;
 
     projections.push({
@@ -240,15 +368,26 @@ export function runScenarioEngine(input: ScenarioEngineInput): ScenarioEngineRes
       totalFixedCostsSek,
       totalVariableCostsSek,
       netCashflowSek,
+      cumulativeLiquiditySek: cumulativeLiquidity,
       appliedEventIds: eventIdsEffectiveInCalendarMonth(input.events, monthKey),
     });
   }
+
+  const lowestNet = projections.length ? lowest : 0;
+  const worstMonthBurnRunwayMonths =
+    lowestNet < 0 && starting > 0
+      ? Math.floor(starting / Math.abs(lowestNet))
+      : null;
 
   return {
     projections,
     summary: {
       cumulativeNetCashflowSek: cumulative,
-      lowestMonthlyNetCashflowSek: projections.length ? lowest : 0,
+      lowestMonthlyNetCashflowSek: lowestNet,
+      startingLiquiditySek: starting,
+      minCumulativeLiquiditySek: projections.length ? minLiquidity : starting,
+      monthsUntilDepleted,
+      worstMonthBurnRunwayMonths,
     },
   };
 }

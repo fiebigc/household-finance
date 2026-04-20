@@ -83,7 +83,10 @@ export function computeFinancialHealthScore(params: {
   scenarioLowestNet: number | null;
 }): { score: number; label: string } {
   const { incomeSek, netAfterRecurringSek, ltvRatio, scenarioLowestNet } = params;
-  const margin = incomeSek > 0 ? netAfterRecurringSek / incomeSek : netAfterRecurringSek >= 0 ? 0.5 : -0.5;
+  /** Net as share of modeled income; clamp so tiny/no income does not explode the score. */
+  const marginRaw =
+    incomeSek > 0 ? netAfterRecurringSek / incomeSek : netAfterRecurringSek >= 0 ? 0.5 : -0.5;
+  const margin = clamp(marginRaw, -0.45, 0.55);
 
   let score = 42 + margin * 95;
   if (ltvRatio >= LTV_CRITICAL) score -= 22;
@@ -114,6 +117,7 @@ export function buildDashboardInsights(input: DashboardInsightsInput): Dashboard
         totalFixedCostsSek: 0,
         totalVariableCostsSek: 0,
         netCashflowSek: 0,
+        cumulativeLiquiditySek: 0,
         appliedEventIds: [],
       },
       recurringCostsMonthlySek: input.recurringCostsMonthlySek,

@@ -410,6 +410,9 @@ create table if not exists public.app_recurring_costs (
   amount_sek numeric(12, 2) not null default 0,
   assigned_entity_id text not null references public.app_entities(id) on delete restrict,
   lane_order integer not null default 0,
+  spending_category_id text not null default 'other',
+  schedule_start_date date,
+  schedule_end_date date,
   updated_by uuid,
   updated_at timestamptz not null default now()
 );
@@ -463,6 +466,29 @@ alter table public.app_recurring_costs
   add column if not exists flow_kind text not null default 'expense'
   check (flow_kind in ('expense', 'income'));
 
+alter table public.app_recurring_costs
+  add column if not exists spending_category_id text not null default 'other',
+  add column if not exists schedule_start_date date,
+  add column if not exists schedule_end_date date;
+
+create table if not exists public.app_household_planning (
+  household_id text primary key,
+  calendar_days jsonb not null default '{}'::jsonb,
+  work_rules jsonb not null default '[]'::jsonb,
+  portal_snapshot jsonb not null default '{}'::jsonb,
+  updated_by uuid,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.app_household_planning enable row level security;
+
+drop policy if exists household_access_app_household_planning on public.app_household_planning;
+create policy household_access_app_household_planning
+on public.app_household_planning
+for all
+using (household_id = 'demo-household-se-001')
+with check (household_id = 'demo-household-se-001');
+
 create table if not exists public.app_household_config (
   household_id text primary key,
   config jsonb not null,
@@ -475,6 +501,50 @@ alter table public.app_household_config enable row level security;
 drop policy if exists household_access_app_household_config on public.app_household_config;
 create policy household_access_app_household_config
 on public.app_household_config
+for all
+using (household_id = 'demo-household-se-001')
+with check (household_id = 'demo-household-se-001');
+
+create table if not exists public.app_scenarios (
+  id text primary key,
+  household_id text not null default 'demo-household-se-001',
+  name text not null,
+  definition jsonb not null default '{}'::jsonb,
+  updated_by uuid,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists app_scenarios_household_id_idx
+  on public.app_scenarios (household_id);
+
+alter table public.app_scenarios enable row level security;
+
+drop policy if exists household_access_app_scenarios on public.app_scenarios;
+create policy household_access_app_scenarios
+on public.app_scenarios
+for all
+using (household_id = 'demo-household-se-001')
+with check (household_id = 'demo-household-se-001');
+
+-- Named expense lists (e.g. renovation); lines stored as JSON on each row.
+create table if not exists public.app_expense_tracker_boards (
+  id text primary key,
+  household_id text not null default 'demo-household-se-001',
+  title text not null,
+  items jsonb not null default '[]'::jsonb,
+  sort_order int not null default 0,
+  updated_by uuid,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists app_expense_tracker_boards_household_id_idx
+  on public.app_expense_tracker_boards (household_id);
+
+alter table public.app_expense_tracker_boards enable row level security;
+
+drop policy if exists household_access_app_expense_tracker_boards on public.app_expense_tracker_boards;
+create policy household_access_app_expense_tracker_boards
+on public.app_expense_tracker_boards
 for all
 using (household_id = 'demo-household-se-001')
 with check (household_id = 'demo-household-se-001');

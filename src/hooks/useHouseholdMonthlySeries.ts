@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { buildMonthlySeriesFromCsv } from "@/data/bankData";
-import { DEFAULT_HOUSEHOLD_ID } from "@/lib/appDataService";
 import { hasSupabaseEnv, supabase } from "@/lib/supabase";
 import type { MonthlySeriesPoint } from "@/utils/finance/bankTransactionSeries";
 import { loadMonthlySeriesFromSupabase } from "@/utils/finance/bankTransactionSeries";
 
 export type MonthlySeriesDataSource = "supabase" | "bundled";
 
-export function useHouseholdMonthlySeries(refreshKey: number): {
+export function useHouseholdMonthlySeries(userId: string | undefined, refreshKey: number): {
   series: MonthlySeriesPoint[];
   dataSource: MonthlySeriesDataSource;
   loading: boolean;
@@ -17,7 +16,7 @@ export function useHouseholdMonthlySeries(refreshKey: number): {
   const [loading, setLoading] = useState(() => Boolean(hasSupabaseEnv && supabase));
 
   useEffect(() => {
-    if (!hasSupabaseEnv || !supabase) {
+    if (!hasSupabaseEnv || !supabase || !userId) {
       setSeries(buildMonthlySeriesFromCsv());
       setDataSource("bundled");
       setLoading(false);
@@ -29,7 +28,7 @@ export function useHouseholdMonthlySeries(refreshKey: number): {
 
     void loadMonthlySeriesFromSupabase({
       supabase,
-      householdId: DEFAULT_HOUSEHOLD_ID,
+      householdId: userId,
     })
       .then(({ series: next, rowCount }) => {
         if (cancelled) return;
@@ -53,7 +52,7 @@ export function useHouseholdMonthlySeries(refreshKey: number): {
     return () => {
       cancelled = true;
     };
-  }, [refreshKey]);
+  }, [userId, refreshKey]);
 
   return { series, dataSource, loading };
 }

@@ -34,7 +34,7 @@ The Vite app lives in `src/`; product docs remain in `docs/`.
 | [docs/MOBILE.md](docs/MOBILE.md) | Mobile-first requirements and acceptance checks |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Git + Cloudflare + Supabase deployment setup |
 | [docs/ASSETS-CHECKLIST.md](docs/ASSETS-CHECKLIST.md) | Required assets for a rigid framework |
-| [docs/BANK-DATA-WIKI.md](docs/BANK-DATA-WIKI.md) | Real bank CSV imports: account mapping, personas (June=Christian; AMF/world index=Aaro), gaps |
+| [docs/BANK-DATA-WIKI.md](docs/BANK-DATA-WIKI.md) | Real bank CSV imports: account mapping, sample personas, gaps |
 
 ---
 

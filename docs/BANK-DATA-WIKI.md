@@ -1,28 +1,28 @@
 # Bank data wiki (household imports)
 
-How CSV exports in [`docs/bank/`](../docs/bank/) map to accounts in the app (`src/data/realWorldBalanceSheet.ts`).
+How CSV exports in [`docs/bank/`](../docs/bank/) map to accounts in the app (`src/data/bankData.ts` bundled samples).
 
 **As-of date:** 2026-04-08.
 
-## Personas
+## Personas (private exports)
 
 | Persona | Accounts |
 |---------|----------|
-| **Joint** | Household everyday, Shared/joint, mortgage buffer, all three loans. |
-| **Christian** | Personal account, Mastercard Guld, June Spara investment. |
-| **Heli** | Joint accounts shared with Christian; no separate export. |
-| **Aaro** | AMF + World index (not in these CSVs). |
-| **Unto** | No balance row; may appear in transaction memos. |
+| **Joint / household** | Household everyday, Shared/joint, mortgage buffer, all three loans. |
+| **Adult 1 (personal)** | Primary checking, credit card, fund savings in sample CSVs. |
+| **Adult 2** | Often joint-only in samples; no separate export. |
+| **Child 1** | External investment products may not appear in bank CSVs. |
+| **Child 2** | May appear only in transaction memos. |
 
 ## Cash accounts
 
 | File | Account | Balance (SEK) |
 |------|---------|---------------|
-| `AccountChristian-24890618775-…` | Christian personal | **13 312** |
+| `AccountChristian-24890618775-…` (sample: `AccountSampleAdult1.csv`) | Adult 1 personal | **13 312** |
 | `AccountHousehold-12110506350-…` | Household everyday | **11 045** |
 | `AccountShared-24890598057-…` | Shared joint | **62 526** |
 | `AccountXLSavings-12110506342-…` | *Duplicate of Shared* | — |
-| `MastercardGuld-24890598081-…` | Mastercard Guld (Christian) | **−3 493** |
+| `MastercardGuld-24890598081-…` (sample: `CreditCardSample.csv`) | Adult 1 credit | **−3 493** |
 
 ## Mortgage accounts
 
@@ -42,13 +42,13 @@ The mortgage **buffer** account (`Bol}nFastHypotek-24500343776`) receives 1 000 
 
 | Item | Evidence | Owner |
 |------|----------|-------|
-| June Spara | Recurring −2 500 on Christian's account | Christian |
-| AMF | Not in exports | Aaro |
-| World index | Not in exports | Aaro |
+| Fund savings (e.g. monthly transfer) | Recurring debit on adult 1 account | Adult 1 |
+| External pension / fund | Not in exports | Child 1 |
+| Index products | Not in exports | Child 1 |
 
 ## App integration
 
-- **Starting liquidity** = Household + Shared + Christian cash (`defaultLiquidityFromImportsSek()`).
+- **Starting liquidity** in the app sums non-loan cash accounts with positive balances (see bundled `defaultBankAccounts` in `bankData.ts`).
 - **Chart** shows per-account + combined EOM liquidity for cash accounts only.
 - **Loan balances** appear in the Accounts card; payments are extracted as recurring expenses on the board.
 
