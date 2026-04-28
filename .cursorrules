@@ -1,19 +1,62 @@
-Strict Separation of Concerns:
-- All financial calculations, Swedish benefit logic, and Supabase calls must live in `src/utils/finance/` or `src/hooks/`.
-- UI components may only render data and handle user interactions.
+# Household Finance App — Cursor Rules
+# Version 1.1.0 | Last updated: 2026-04
 
-Open-Source Readiness:
-- Never hardcode personal data.
-- All household values (income, loan amounts, rates, dates) must come from `src/config/householdConfig.ts`.
-- `src/config/householdConfig.ts` must read values from environment variables and/or a Supabase profile row.
+## Project overview
 
-Swedish Tax and Benefit Logic Is Sacred:
-- Keep SGI, A-kassa cap, foraldrapenning, ranteavdrag, and barnbidrag logic in isolated utility files.
-- Each Swedish-specific utility must expose clear typed inputs and outputs for independent unit testing.
+A personal household financial dashboard, planner, and modelling tool for a Swedish
+household. Two adults (Christian on parental leave / possibly self-employed, wife employed
+at 80%), two children (3-year-old, 11-month-old starting daycare Aug 15). The app covers
+income tracking, loan management, social benefits, period scheduling, CSV import from
+banks and Försäkringskassan, and long-range retirement modelling.
 
-Mobile-First PWA:
-- Tailwind styling must be mobile-first and responsive by default.
+The app is logic-based. No hardcoded entities, amounts, or household-specific values
+anywhere in the codebase. Everything is driven by the database schema.
 
-Date-Aware Scenarios:
-- Treat August 15 as a configurable transition date.
-- Scenario simulations must be time-phased, where income and costs change at specific dates rather than aggregate-only monthly values.
+---
+
+## Tech stack
+
+- **Frontend**: React + TypeScript + Vite
+- **Styling**: Tailwind CSS
+- **State management**: Zustand (or TanStack Query for server state)
+- **Backend (default)**: Supabase (Postgres + Auth + Row Level Security)
+- **Backend (pluggable)**: Any REST/GraphQL adapter implementing the backend interface
+- **Charts**: Recharts
+- **Icons**: Lucide React
+- **Date handling**: date-fns
+- **CSV parsing**: Papa Parse
+
+---
+
+## Architecture principles
+
+### 1. Entity-first data model
+Every financial fact belongs to an entity (adult, child, or company).
+Entities belong to a household. The hierarchy is always:
+`household → entity → account / period / cashflow / benefit`
+
+Never attach data directly to a household — always via an entity.
+
+### 2. Zero hardcoding
+No entity names, amounts, tax rates, benefit rules, or dates may appear in source code.
+All values come from the database. UI renders from data — it does not encode domain logic.
+
+### 3. Pluggable backend via adapter interface
+All database operations must go through a typed backend adapter interface, never
+called directly from UI components. Default adapter = Supabase. The interface must
+be implementable with any REST/GraphQL backend.
+
+### 4. Soft-delete — never hard-delete domain rows
+Tables entities, accounts, periods, cashflows, benefits use archived_at (nullable
+datetime) as a soft-delete sentinel. Null = active. Always filter WHERE archived_at
+IS NULL for active data. Never call DELETE on these tables.
+
+### 5. Scheduling — two-layer resolution
+Period scheduling: periods.weekly_pattern sets the base weekly structure.
+period_day_overrides adds single-day exceptions (override_type: active | inactive).
+Resolution order: day override → weekly pattern → pct_fte fallback.
+The projection engine must implement this. Never short-circuit it.
+
+### 6. Projection engine is a pure function
+No side effects, no DB calls, no component state. Takes entity tree + options,
+returns MonthlyProjection[]. Lives in src/engine/projection.ts only.

@@ -1,13 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey =
-  import.meta.env.VITE_SUPABASE_ANON_KEY ??
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+const url = import.meta.env.VITE_SUPABASE_URL;
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const hasSupabaseEnv = Boolean(supabaseUrl && supabaseAnonKey);
+if (!url || !key) {
+  throw new Error(
+    "Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env"
+  );
+}
 
-export const supabase = hasSupabaseEnv
-  ? createClient(supabaseUrl as string, supabaseAnonKey as string)
-  : null;
-
+export const supabase = createClient(url, key);

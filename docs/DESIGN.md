@@ -67,6 +67,7 @@ Dark mode: keep existing CSS variable hooks; cards remain elevated via shadow + 
 - **Buttons**: Clear hierarchy—primary actions solid; secondary/outline for Settings; ghost for table edits.
 - **macOS-style switch**: Pill track + thumb for boolean preferences (e.g. show per-account series).
 - **Settings**: Modal panel, not a tab—keeps the main surface uncluttered like the reference.
+- **Dashboard card controls**: Overview cards must remain user-configurable. Each card should expose keyboard/touch controls to move up/down in the bento order, hide the card, and restore hidden cards from a compact dashboard control strip.
 
 ---
 
@@ -92,12 +93,22 @@ Dark mode: keep existing CSS variable hooks; cards remain elevated via shadow + 
 When changing UI:
 
 1. Prefer **`finance-bento`** + **`bento-span-*`** utilities in `src/index.css` over ad-hoc flex hacks for main dashboard sections.
-2. Use **`Card`** from `src/components/ui/card.tsx` for surfaces (radius + shadow centralized).
+2. Use **`Card`** from `src/components/ui/Card.tsx` for surfaces (radius + shadow centralized).
 3. Keep **financial logic** out of components—only layout and presentation here.
 4. After layout changes, verify **both tabs** and **mobile + lg** viewports.
 
 ---
 
-## 9) Changelog note
+## 9) Doodle mapping
+
+The `ui/` doodles refine the app surfaces:
+
+- **Overview**: hero account chart spans the main row, with compact KPI cards for household health, total loan, fixed costs, net, income, investments, and account focus. Cards are movable, hidable, and re-addable.
+- **Planning**: calendar is the feature tile; account/entity chips and planning activity controls form the side stack; benefit/leave/unemployment cards use compact gauges and KPI rows.
+- **Data & Settings**: top overview reads as a finance flow diagram from income streams into accounts/cost buckets, followed by grouped account/entity edit cards.
+
+---
+
+## 10) Changelog note
 
 Earlier drafts of this file referenced a dark Supabase-style baseline. **The product direction for the dashboard shell is now the bento reference above**; semantic finance colors and accessibility rules remain in force.

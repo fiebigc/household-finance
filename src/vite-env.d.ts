@@ -1,15 +1,29 @@
 /// <reference types="vite/client" />
 
+/** File System Access API (Chromium) — not in all TS lib.dom versions */
+interface FileSystemHandlePermissionDescriptor {
+  mode?: "read" | "readwrite";
+}
+
+interface FileSystemDirectoryHandle {
+  queryPermission(descriptor?: FileSystemHandlePermissionDescriptor): Promise<PermissionState>;
+  requestPermission(descriptor?: FileSystemHandlePermissionDescriptor): Promise<PermissionState>;
+  getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandle>;
+}
+
+interface FileSystemFileHandle {
+  getFile(): Promise<File>;
+  createWritable(): Promise<FileSystemWritableFileStream>;
+}
+
+interface FileSystemWritableFileStream extends WritableStream {
+  write(data: string | BufferSource | Blob): Promise<void>;
+  close(): Promise<void>;
+}
+
 interface ImportMetaEnv {
-  readonly VITE_SUPABASE_URL?: string;
-  readonly VITE_SUPABASE_ANON_KEY?: string;
-  readonly VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY?: string;
-  /** Base URL for your Tink session API (e.g. Cloudflare Worker), no trailing slash. */
-  readonly VITE_TINK_CONNECT_API_BASE_URL?: string;
-  /** Optional; usually only needed client-side if Tink docs require it (prefer server-only). */
-  readonly VITE_TINK_CLIENT_ID?: string;
-  /** Set to "true" to label demo state in UI; connect still needs API URL. */
-  readonly VITE_TINK_DEMO_MODE?: string;
+  readonly VITE_SUPABASE_URL: string;
+  readonly VITE_SUPABASE_ANON_KEY: string;
 }
 
 interface ImportMeta {

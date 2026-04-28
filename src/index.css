@@ -4,309 +4,100 @@
 
 @layer base {
   :root {
-    color-scheme: light;
-    --background: 220 14% 96%;
-    --foreground: 240 6% 10%;
+    --canvas: 220 14% 96%;
     --card: 0 0% 100%;
-    --card-foreground: 240 6% 10%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 6% 10%;
-    --primary: 211 100% 45%;
+    --card-foreground: 224 16% 14%;
+    --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 92%;
-    --secondary-foreground: 240 6% 10%;
-    --muted: 220 12% 92%;
-    --muted-foreground: 240 4% 46%;
-    --accent: 211 100% 96%;
-    --accent-foreground: 211 100% 35%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 220 14% 96%;
+    --accent-foreground: 224 16% 14%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 87%;
-    --input: 220 13% 87%;
-    --ring: 211 100% 45%;
-    --radius: 0.75rem;
-
-    --finance-income: 152 71% 32%;
-    --finance-expense: 0 72% 48%;
-    --finance-neutral: 215 16% 40%;
-    --finance-runway: 32 95% 44%;
+    --border: 220 13% 91%;
+    --ring: 221 83% 53%;
+    --income: 142 71% 45%;
+    --expense: 0 84% 60%;
+    --runway: 38 92% 50%;
+    --savings-rate: 262 83% 58%;
   }
+}
 
-  .dark {
-    --finance-income: 152 71% 45%;
-    --finance-expense: 0 72% 51%;
-    --finance-neutral: 215 20% 70%;
-    --finance-runway: 42 95% 56%;
-  }
-
-  * {
-    @apply border-border;
-  }
-
-  body {
-    @apply min-h-screen bg-background font-sans text-foreground antialiased;
-    /* Bento-style canvas: soft gray field with very light vignette (reference dashboard). */
-    background-image:
-      radial-gradient(1000px 520px at 8% -8%, hsl(0 0% 100%) 0%, hsl(220 16% 96%) 52%),
-      radial-gradient(800px 420px at 100% 0%, hsl(220 25% 97%) 0%, hsl(220 14% 95%) 55%);
-  }
+@layer base {
+  * { @apply border-border; }
+  body { @apply text-card-foreground font-sans; }
 }
 
 @layer components {
   .page-shell {
-    @apply mx-auto grid max-w-[1280px] gap-3 p-2 sm:gap-4 sm:p-3 md:p-4;
+    @apply mx-auto w-full max-w-[1440px] px-4 py-6;
   }
 
-  /** Sticky app bar: floats over scrolling bento content; keep below dialogs (z-50+). */
-  .dashboard-sticky-header {
-    @apply sticky top-2 z-40 w-full sm:top-3;
-  }
-
-  /**
-   * Per-card bento surfaces (mixed light/dark on the same page).
-   * Tokens mirror shadcn HSL components; scoped via data-bento-surface on the Card root.
-   */
-  [data-bento-surface="dark"] {
-    color-scheme: dark;
-    --card: 222 14% 9%;
-    --card-foreground: 210 20% 98%;
-    --border: 217 15% 22%;
-    --muted: 217 15% 17%;
-    --muted-foreground: 215 12% 72%;
-    --secondary: 217 15% 15%;
-    --secondary-foreground: 210 20% 98%;
-    --accent: 217 20% 18%;
-    --accent-foreground: 210 20% 98%;
-    --input: 217 15% 24%;
-    --ring: 212 95% 55%;
-    --popover: 222 14% 11%;
-    --popover-foreground: 210 20% 98%;
-  }
-
-  [data-bento-surface="slate"] {
-    color-scheme: light;
-    --card: 217 19% 96%;
-    --card-foreground: 222 47% 11%;
-    --border: 217 16% 88%;
-    --muted: 215 20% 92%;
-    --muted-foreground: 215 16% 38%;
-    --secondary: 214 20% 93%;
-    --secondary-foreground: 222 40% 13%;
-    --accent: 214 32% 91%;
-    --accent-foreground: 222 47% 11%;
-    --input: 217 16% 88%;
-    --ring: 221 83% 53%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-  }
-
-  [data-bento-surface="ocean"] {
-    color-scheme: light;
-    --card: 199 45% 97%;
-    --card-foreground: 202 55% 14%;
-    --border: 199 38% 88%;
-    --muted: 198 40% 93%;
-    --muted-foreground: 200 18% 38%;
-    --secondary: 198 35% 92%;
-    --secondary-foreground: 202 50% 16%;
-    --accent: 199 50% 90%;
-    --accent-foreground: 202 55% 14%;
-    --input: 199 35% 86%;
-    --ring: 199 89% 42%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 202 55% 14%;
-  }
-
-  [data-bento-surface="rose"] {
-    color-scheme: light;
-    --card: 340 45% 98%;
-    --card-foreground: 340 30% 16%;
-    --border: 340 30% 90%;
-    --muted: 340 28% 94%;
-    --muted-foreground: 340 12% 40%;
-    --secondary: 340 25% 93%;
-    --secondary-foreground: 340 30% 18%;
-    --accent: 340 40% 92%;
-    --accent-foreground: 340 35% 18%;
-    --input: 340 28% 88%;
-    --ring: 340 75% 48%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 340 30% 16%;
-  }
-
-  /** 12-column bento grid (activates at lg). See docs/DESIGN.md */
   .finance-bento {
-    @apply grid grid-cols-1 gap-4;
-  }
-
-  @media (min-width: 1024px) {
-    .finance-bento {
-      grid-template-columns: repeat(12, minmax(0, 1fr));
-    }
-
-    /** Without this, items default to one 1/12 column — same readable width as mobile (full row). */
-    .bento-span-full {
-      grid-column: 1 / -1;
-    }
-
-    .bento-span-chart {
-      grid-column: span 8;
-    }
-
-    .bento-span-kpi-stack {
-      grid-column: span 4;
-    }
-
-    .bento-span-snap {
-      grid-column: span 5;
-    }
-
-    .bento-span-adults {
-      grid-column: span 7;
-    }
-
-    .bento-span-third {
-      grid-column: span 4;
-    }
-
-    /**
-     * Scenarios tab: 8+4 split left the chart tall but the “Scenario & exploration” column too narrow
-     * on desktop (tiles + forms). Stack chart + controls each full-width from lg up.
-     */
-    .finance-bento--scenarios .bento-span-chart,
-    .finance-bento--scenarios .bento-span-kpi-stack {
-      grid-column: 1 / -1;
-    }
-  }
-
-  .bento-span-full,
-  .bento-span-chart,
-  .bento-span-kpi-stack,
-  .bento-span-snap,
-  .bento-span-adults,
-  .bento-span-third {
-    min-width: 0;
-  }
-
-  .native-select {
-    @apply mt-1 flex h-9 w-full appearance-none rounded-[10px] border border-input bg-background/90 bg-[length:1rem] bg-[right_0.5rem_center] bg-no-repeat px-3 py-2 pr-9 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236e6e73' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
-  }
-
-  .data-table {
-    @apply w-full border-collapse text-sm;
-  }
-
-  .data-table th,
-  .data-table td {
-    @apply whitespace-nowrap border-b border-border px-1.5 py-1.5 text-left;
-  }
-
-  .data-table th {
-    @apply font-medium text-muted-foreground;
-  }
-
-  .lane-drop {
-    @apply rounded-xl border border-dashed border-border bg-card/45 p-2;
-  }
-
-  .drag-item {
-    @apply mb-1.5 rounded-[10px] border border-border bg-card/95 p-1.5 shadow-sm;
-  }
-
-  .chart-wrap {
-    @apply relative h-[240px] w-full overflow-visible sm:h-[280px];
-  }
-
-  /* Let hover tooltips extend past the SVG box (Recharts defaults can clip). */
-  .chart-wrap .recharts-responsive-container,
-  .chart-wrap .recharts-wrapper {
-    overflow: visible !important;
-  }
-
-  .chart-legend-scroll {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
-  }
-
-  .kpi-grid {
-    @apply grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3;
-  }
-
-  .form-grid {
-    @apply grid grid-cols-1 gap-2 sm:grid-cols-3;
-  }
-
-  .lane-grid {
-    @apply grid grid-cols-1 gap-2 sm:grid-cols-3;
-  }
-
-  .balance-edit-btn {
-    @apply opacity-0 transition-opacity;
-  }
-
-  tr:hover .balance-edit-btn {
-    @apply opacity-100;
-  }
-
-  tr:focus-within .balance-edit-btn {
-    @apply opacity-100;
-  }
-
-  /* Compact dashboard tiles (matches earlier dashboard KPI pattern) */
-  .kpi-tile-label {
-    @apply text-[11px] text-muted-foreground;
-  }
-
-  .kpi-tile-value {
-    @apply text-sm font-semibold text-foreground;
-  }
-
-  .household-summary-strip {
-    @apply flex flex-wrap gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground;
-  }
-
-  .health-meter-track {
-    @apply relative h-2.5 w-full overflow-hidden rounded-full bg-muted;
-    background: linear-gradient(
-      90deg,
-      hsl(var(--finance-expense) / 0.35) 0%,
-      hsl(var(--finance-runway) / 0.45) 50%,
-      hsl(var(--finance-income) / 0.4) 100%
-    );
-  }
-
-  /** Filled segment (0–score) so the bar reads as a meter, not only a wandering thumb. */
-  .health-meter-fill {
-    @apply pointer-events-none absolute inset-y-0 left-0 rounded-full;
-    background-color: hsl(var(--foreground) / 0.12);
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 16px;
+    width: 100%;
     max-width: 100%;
+    overflow: hidden;
   }
 
-  /**
-   * Thumb uses --health-pct (e.g. 72%). Clamp keeps the translated circle inside the track
-   * (overflow-hidden + translate -50% used to clip at 0 and 100).
-   */
-  .health-meter-thumb {
-    @apply absolute top-1/2 z-[1] size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-card shadow-sm;
-    left: clamp(0.5rem, var(--health-pct, 50%), calc(100% - 0.5rem));
+  .bento-mini     { grid-column: span 3; min-width: 0; }
+  .bento-small    { grid-column: span 4; min-width: 0; }
+  .bento-medium   { grid-column: span 6; min-width: 0; }
+  .bento-large    { grid-column: span 8; min-width: 0; }
+  .bento-full     { grid-column: span 12; min-width: 0; }
+
+  @media (max-width: 1023px) {
+    .finance-bento {
+      grid-template-columns: repeat(6, 1fr);
+    }
+    .bento-mini     { grid-column: span 3; }
+    .bento-small    { grid-column: span 3; }
+    .bento-medium   { grid-column: span 6; }
+    .bento-large    { grid-column: span 6; }
+    .bento-full     { grid-column: span 6; }
   }
 
-  .recurring-flow-expense {
-    border-color: hsl(var(--finance-expense) / 0.5);
-    background-color: hsl(var(--finance-expense) / 0.08);
+  @media (max-width: 639px) {
+    .finance-bento {
+      grid-template-columns: 1fr;
+    }
+    .bento-mini,
+    .bento-small,
+    .bento-medium,
+    .bento-large,
+    .bento-full {
+      grid-column: span 1;
+    }
   }
 
-  .recurring-flow-income {
-    border-color: hsl(var(--finance-income) / 0.45);
-    background-color: hsl(var(--finance-income) / 0.08);
+  /* Settings modal: scrollbar inside panel, transparent track, pill thumb */
+  .account-settings-modal-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.38) transparent;
   }
+  .account-settings-modal-scroll::-webkit-scrollbar {
+    width: 7px;
+  }
+  .account-settings-modal-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .account-settings-modal-scroll::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.32);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .account-settings-modal-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.48);
+  }
+  .account-settings-modal-scroll::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
 
-  .account-table-name {
-    @apply cursor-help font-medium text-foreground underline decoration-dotted decoration-muted-foreground/80 underline-offset-2;
-  }
-
-  .account-balance-cell {
-    @apply text-right tabular-nums;
-  }
+@layer utilities {
+  .tabular-nums { font-variant-numeric: tabular-nums; }
 }
