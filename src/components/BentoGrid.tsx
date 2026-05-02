@@ -1,4 +1,4 @@
-import { useState, useCallback, type ReactNode } from "react";
+import { useCallback, useMemo, useEffect, type ReactNode } from "react";
 import {
   DndContext,
   closestCenter,
@@ -19,7 +19,8 @@ import { useAppStore, type TabId } from "@/stores/appStore";
 import { useBackend } from "@/hooks/useBackend";
 import type { CardSize, CardLayoutEntry } from "@/types/schema";
 import { cn } from "@/lib/utils";
-import { Plus } from "lucide-react";
+import { bentoLayoutsEquivalent, mergeCardLayoutWithDefinitions } from "@/utils/bentoCardLayout";
+import { useReportHiddenBentoCards } from "@/context/BentoHiddenCardsContext";
 
 const sizeClasses: Record<CardSize, string> = {
   mini: "bento-mini",
@@ -33,6 +34,8 @@ export interface BentoCardDefinition {
   id: string;
   title: string;
   defaultSize: CardSize;
+  /** When this card first appears in saved layout for this tab (default visible). */
+  defaultVisible?: boolean;
   render: (props: {
     size: CardSize;
     onHide: () => void;
@@ -82,19 +85,20 @@ interface BentoGridProps {
 
 export function BentoGrid({ tab, cards }: BentoGridProps) {
   const { user, cardLayouts, setCardLayout } = useAppStore();
+  const activeTabGlobal = useAppStore((s) => s.activeTab);
   const backend = useBackend();
-  const [showRestore, setShowRestore] = useState(false);
 
-  const currentLayout = cardLayouts[tab] ?? cards.map((c, i) => ({
-    card_id: c.id,
-    size: c.defaultSize,
-    order: i,
-    visible: true,
-  }));
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  const mergedLayout = useMemo(
+    () =>
+      mergeCardLayoutWithDefinitions(
+        cardLayouts[tab],
+        cards.map((c) => ({
+          id: c.id,
+          defaultSize: c.defaultSize,
+          defaultVisible: c.defaultVisible,
+        })),
+      ),
+    [cardLayouts, tab, cards],
   );
 
   const persist = useCallback(
@@ -110,13 +114,38 @@ export function BentoGrid({ tab, cards }: BentoGridProps) {
         }).catch(console.error);
       }
     },
-    [tab, user, backend, setCardLayout]
+    [tab, user, backend, setCardLayout],
   );
 
-  const visibleCards = currentLayout
-    .filter((l) => l.visible)
-    .sort((a, b) => a.order - b.order);
-  const hiddenCards = currentLayout.filter((l) => !l.visible);
+  useEffect(() => {
+    const stored = cardLayouts[tab] ?? [];
+    if (bentoLayoutsEquivalent(mergedLayout, stored)) return;
+    persist(mergedLayout);
+  }, [cardLayouts, tab, mergedLayout, persist]);
+
+  const currentLayout = mergedLayout;
+
+  const visibleCards = useMemo(
+    () => currentLayout.filter((l) => l.visible).sort((a, b) => a.order - b.order),
+    [currentLayout],
+  );
+  const hiddenCards = useMemo(() => currentLayout.filter((l) => !l.visible), [currentLayout]);
+
+  const hiddenCardSummaries = useMemo(
+    () =>
+      hiddenCards
+        .map((h) => {
+          const def = cards.find((c) => c.id === h.card_id);
+          return def ? { card_id: h.card_id, title: def.title } : null;
+        })
+        .filter((x): x is { card_id: string; title: string } => x != null),
+    [hiddenCards, cards],
+  );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -141,13 +170,19 @@ export function BentoGrid({ tab, cards }: BentoGridProps) {
     persist(updated);
   };
 
-  const handleRestore = (cardId: string) => {
-    const maxOrder = Math.max(0, ...visibleCards.map((c) => c.order));
-    const updated = currentLayout.map((c) =>
-      c.card_id === cardId ? { ...c, visible: true, order: maxOrder + 1 } : c
-    );
-    persist(updated);
-  };
+  const handleRestore = useCallback(
+    (cardId: string) => {
+      const vis = currentLayout.filter((l) => l.visible);
+      const maxOrder = Math.max(0, ...vis.map((c) => c.order));
+      const updated = currentLayout.map((c) =>
+        c.card_id === cardId ? { ...c, visible: true, order: maxOrder + 1 } : c,
+      );
+      persist(updated);
+    },
+    [currentLayout, persist],
+  );
+
+  useReportHiddenBentoCards(tab, activeTabGlobal, hiddenCardSummaries, handleRestore);
 
   const handleResize = (cardId: string, size: CardSize) => {
     const updated = currentLayout.map((c) =>
@@ -160,35 +195,6 @@ export function BentoGrid({ tab, cards }: BentoGridProps) {
 
   return (
     <div>
-      {hiddenCards.length > 0 && (
-        <div className="mb-4">
-          <button
-            onClick={() => setShowRestore(!showRestore)}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-card-foreground transition-colors"
-          >
-            <Plus className="w-3 h-3" />
-            {hiddenCards.length} hidden card{hiddenCards.length > 1 ? "s" : ""}
-          </button>
-          {showRestore && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {hiddenCards.map((h) => {
-                const def = cards.find((c) => c.id === h.card_id);
-                if (!def) return null;
-                return (
-                  <button
-                    key={h.card_id}
-                    onClick={() => handleRestore(h.card_id)}
-                    className="px-3 py-1.5 text-xs rounded-bento-inner bg-muted/60 hover:bg-muted text-muted-foreground hover:text-card-foreground transition-colors"
-                  >
-                    + {def.title}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={visibleCardIds} strategy={rectSortingStrategy}>
           <div className="finance-bento">
