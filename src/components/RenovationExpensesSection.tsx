@@ -6,7 +6,7 @@ import { formatSEK, cn } from "@/lib/utils";
 import { primaryCashflowAccountId } from "@/utils/cashflowAccounts";
 import type { Cashflow } from "@/types/schema";
 import { useHouseholdCardValues } from "@/hooks/useHouseholdCardValues";
-import bundledRenovationCsv from "../../docs/bank/Expenses.csv?raw";
+import bundledRenovationCsv from "@/data/samples/renovation-bundled-expenses.csv?raw";
 import {
   parseRenovationExpensesCsv,
   RENOVATION_EXPENSES_IMPORT_BATCH,
