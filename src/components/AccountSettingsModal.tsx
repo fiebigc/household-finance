@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { X, FolderOpen, Download, Lock } from "lucide-react";
+import { X, FolderOpen, Download, Lock, Upload } from "lucide-react";
 import { supabase, getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useAppStore } from "@/stores/appStore";
 import { useBackend } from "@/hooks/useBackend";
@@ -21,6 +21,7 @@ import {
   getBoundLocalFileSession,
   changeLocalVaultPassword,
   clearFileStorageSession,
+  restoreLocalVaultFromBackup,
   MIN_LOCAL_VAULT_PASSWORD_LENGTH,
 } from "@/adapter/fileJson";
 import { setPersistedDesktopVaultPath } from "@/lib/fileDirectoryStorage";
@@ -31,6 +32,7 @@ import { setAppLocale, type AppLocale } from "@/i18n/i18n";
 import { useTranslation } from "react-i18next";
 import { IS_WEBKIT_STANDALONE } from "@/constants/buildTarget";
 import { BuyMeCoffeeButton } from "@/components/BuyMeCoffeeButton";
+import { pickAndReadHouseholdBackupJson } from "@/lib/readBackupJsonFile";
 
 const normalizeAppLocale = (lang: string): AppLocale => {
   if (lang.startsWith("fi")) return "fi";
@@ -88,6 +90,9 @@ export function AccountSettingsModal({ open, onClose }: Props) {
   const [vaultPwNew2, setVaultPwNew2] = useState("");
   const [vaultPwBusy, setVaultPwBusy] = useState(false);
   const [vaultPwNotice, setVaultPwNotice] = useState<string | null>(null);
+  const [restoreBackupPw, setRestoreBackupPw] = useState("");
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
 
   const prevOpenRef = useRef(false);
 
@@ -111,6 +116,8 @@ export function AccountSettingsModal({ open, onClose }: Props) {
     setError(null);
     setSyncNotice(null);
     setVaultPwNotice(null);
+    setRestoreBackupPw("");
+    setRestoreNotice(null);
     setVaultPwCurrent("");
     setVaultPwNew("");
     setVaultPwNew2("");
@@ -249,6 +256,43 @@ export function AccountSettingsModal({ open, onClose }: Props) {
       setError(e instanceof Error ? e.message : "Could not export plaintext snapshot.");
     } finally {
       setPlainExportBusy(false);
+    }
+  };
+
+  const handleRestoreFromBackupFile = async () => {
+    if (!user || dataStorageMode !== "file") return;
+    setRestoreBusy(true);
+    setError(null);
+    setRestoreNotice(null);
+    try {
+      const raw = await pickAndReadHouseholdBackupJson();
+      if (!raw) return;
+      const sess = getBoundLocalFileSession();
+      const profile = {
+        display_name:
+          sess?.display_name?.trim() ||
+          profileName.trim() ||
+          (typeof user?.user_metadata?.display_name === "string" ? user.user_metadata.display_name.trim() : "") ||
+          "Local user",
+        email: sess?.email?.trim()
+          ? sess.email.trim()
+          : typeof user?.email === "string" && user.email
+            ? user.email
+            : null,
+      };
+      await restoreLocalVaultFromBackup(raw, {
+        profile,
+        vaultPassword: restoreBackupPw,
+      });
+      setRestoreNotice(
+        `Restored data was written to ${t("fs.vault_file")} in your linked folder. Your local profile/session id was kept where possible.`,
+      );
+      await refresh();
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return;
+      setError(e instanceof Error ? e.message : "Could not restore from backup.");
+    } finally {
+      setRestoreBusy(false);
     }
   };
 
@@ -548,30 +592,79 @@ export function AccountSettingsModal({ open, onClose }: Props) {
             )}
           </section>
 
-          {household && (
+          {user && (household || dataStorageMode === "file" || dataStorageMode === "demo") && (
             <section className="space-y-2 border-t border-border/50 pt-4">
               <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Household JSON backup
               </h3>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Downloads the same data the app loads from your current storage (
-                {dataStorageMode === "file"
-                  ? IS_WEBKIT_STANDALONE
-                    ? "local encrypted JSON folder on this device"
-                    : "local encrypted JSON folder"
-                  : "cloud storage"}
-                ). Use for CLI imports or your
-                own backups — plain JSON, treat as sensitive.
-              </p>
-              <button
-                type="button"
-                disabled={plainExportBusy || !user}
-                onClick={() => void handleDownloadPlaintextBackup()}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-border bg-background text-card-foreground hover:bg-muted/40 disabled:opacity-50"
-              >
-                <Download className="w-4 h-4 shrink-0" />
-                {plainExportBusy ? "Preparing…" : "Download snapshot (plaintext JSON)"}
-              </button>
+              {household ? (
+                <>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Downloads the same data the app loads from your current storage (
+                    {dataStorageMode === "file"
+                      ? IS_WEBKIT_STANDALONE
+                        ? "local encrypted JSON folder on this device"
+                        : "local encrypted JSON folder"
+                      : dataStorageMode === "demo"
+                        ? t("settings.demo_backup_source_label")
+                        : "cloud storage"}
+                    ). Use for CLI imports or your
+                    own backups — plain JSON, treat as sensitive.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={plainExportBusy || !user}
+                    onClick={() => void handleDownloadPlaintextBackup()}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-border bg-background text-card-foreground hover:bg-muted/40 disabled:opacity-50"
+                  >
+                    <Download className="w-4 h-4 shrink-0" />
+                    {plainExportBusy ? "Preparing…" : "Download snapshot (plaintext JSON)"}
+                  </button>
+                </>
+              ) : (
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  No household loaded yet. You can still restore from a plaintext or encrypted backup below if you use
+                  local file storage.
+                </p>
+              )}
+
+              {dataStorageMode === "file" && (
+                <div className="pt-2 space-y-2 border-t border-border/40 mt-2">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Pick a backup file (same format as the download, or a plain copy of your data). The app writes it
+                    to <code className="text-[10px] bg-muted/50 px-1 rounded">{t("fs.vault_file")}</code> in your{" "}
+                    <span className="font-medium text-card-foreground">linked folder</span> — not wherever the backup
+                    file lives (e.g. a <code className="text-[10px] bg-muted/50 px-1 rounded">backup</code>{" "}
+                    subfolder).
+                  </p>
+                  <label className="block text-[10px] text-muted-foreground">
+                    Vault password (needed if the backup file is encrypted; or to save when the live vault file is
+                    encrypted but this session has no key; optional if the live file is plain-text and you skip
+                    encryption)
+                  </label>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={restoreBackupPw}
+                    onChange={(ev) => setRestoreBackupPw(ev.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <button
+                    type="button"
+                    disabled={restoreBusy || !user || storageBusy || !fileStorageFolderName}
+                    onClick={() => void handleRestoreFromBackupFile()}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-border bg-background text-card-foreground hover:bg-muted/40 disabled:opacity-50"
+                  >
+                    <Upload className="w-4 h-4 shrink-0" />
+                    {restoreBusy ? "Restoring…" : "Restore from backup file…"}
+                  </button>
+                </div>
+              )}
+              {restoreNotice && (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400" role="status">
+                  {restoreNotice}
+                </p>
+              )}
             </section>
           )}
 
@@ -611,6 +704,15 @@ export function AccountSettingsModal({ open, onClose }: Props) {
 
           <section className="space-y-2 border-t border-border/50 pt-4">
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Data storage</h3>
+            {dataStorageMode === "demo" ? (
+              <div className="space-y-2">
+                <p className="text-[11px] leading-relaxed rounded-bento-inner border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-amber-950 dark:text-amber-50">
+                  {t("settings.demo_mode_storage_note")}
+                </p>
+                <p className="text-[11px] text-muted-foreground">{t("settings.demo_mode_storage_hint")}</p>
+              </div>
+            ) : (
+              <>
             <p className="text-[11px] text-muted-foreground">
               {IS_WEBKIT_STANDALONE
                 ? "Household data is kept in an encrypted JSON file in a folder you choose."
@@ -749,6 +851,8 @@ export function AccountSettingsModal({ open, onClose }: Props) {
                 )}
               </div>
             </div>
+              </>
+            )}
           </section>
 
           {syncNotice && (

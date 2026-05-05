@@ -8,7 +8,7 @@ import { clearFileStorageSession } from "@/adapter/fileJson";
 export type TabId = "overview" | "planning" | "data" | "expenses" | "retirement";
 
 /** Where household finance rows are read/written. Auth still uses Supabase when configured. */
-export type DataStorageMode = "supabase" | "file";
+export type DataStorageMode = "supabase" | "file" | "demo";
 
 const DATA_STORAGE_LS = "fin:data-storage-mode";
 
@@ -136,7 +136,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       if (typeof localStorage !== "undefined") {
         if (dataStorageMode === "file") localStorage.setItem(DATA_STORAGE_LS, "file");
-        else localStorage.removeItem(DATA_STORAGE_LS);
+        else if (dataStorageMode === "supabase") localStorage.removeItem(DATA_STORAGE_LS);
       }
     } catch {
       /* ignore */

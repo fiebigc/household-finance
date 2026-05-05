@@ -4,6 +4,7 @@ import { useAppStore, type TabId } from "@/stores/appStore";
 import { useFinanceData } from "@/hooks/useFinanceData";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { lockLocalVaultForSignOut } from "@/adapter/fileJson";
+import { clearMockAdapterStores } from "@/adapter/mock";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -140,10 +141,12 @@ function DesktopSidebar({
   activeTab,
   setActiveTab,
   displayName,
+  demoMode,
 }: {
   activeTab: TabId;
   setActiveTab: (t: TabId) => void;
   displayName: string;
+  demoMode: boolean;
 }) {
   const { t } = useTranslation();
   const { registry } = useBentoHiddenCardsRegistry();
@@ -155,6 +158,11 @@ function DesktopSidebar({
         <div className="text-[11px] text-muted-foreground truncate mt-1" title={displayName}>
           {displayName}
         </div>
+        {demoMode && (
+          <div className="mt-2 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-1 text-[10px] font-medium text-amber-950 dark:text-amber-100 text-center">
+            {t("shell.demo_mode_badge")}
+          </div>
+        )}
       </div>
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1" aria-label={t("shell.native_menu_view")}>
         {tabs.map((tab) => {
@@ -221,6 +229,7 @@ function DashboardShellInner() {
     dataStorageMode,
     clearFinanceData,
     setUser,
+    setDataStorageMode,
   } = useAppStore();
   useFinanceData();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -237,6 +246,13 @@ function DashboardShellInner() {
   const displayName = currentEntity?.name ?? user?.email?.split("@")[0] ?? "User";
 
   const handleSignOut = useCallback(async () => {
+    if (dataStorageMode === "demo") {
+      clearMockAdapterStores();
+      clearFinanceData();
+      setUser(null);
+      setDataStorageMode("file");
+      return;
+    }
     clearFinanceData();
     setUser(null);
     if (dataStorageMode === "supabase") {
@@ -244,7 +260,7 @@ function DashboardShellInner() {
     } else {
       lockLocalVaultForSignOut();
     }
-  }, [clearFinanceData, dataStorageMode, setUser]);
+  }, [clearFinanceData, dataStorageMode, setDataStorageMode, setUser]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -284,7 +300,12 @@ function DashboardShellInner() {
   return (
     <div className={cn("min-h-screen bg-canvas", isDesktopApp && "flex")}>
       {isDesktopApp ? (
-        <DesktopSidebar activeTab={activeTab} setActiveTab={setActiveTab} displayName={displayName} />
+        <DesktopSidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          displayName={displayName}
+          demoMode={dataStorageMode === "demo"}
+        />
       ) : (
         <>
           <header className="sticky top-0 z-40 flex justify-center px-4 pt-3 pb-0">
@@ -292,6 +313,11 @@ function DashboardShellInner() {
               <div className="flex items-center gap-2.5 min-w-0">
                 <span className="text-sm font-semibold tracking-tight truncate">{t("shell.app_short_name")}</span>
                 <span className="hidden sm:inline text-xs text-muted-foreground truncate">{displayName}</span>
+                {dataStorageMode === "demo" && (
+                  <span className="rounded-full bg-amber-500/20 border border-amber-500/35 px-2 py-0.5 text-[10px] font-semibold text-amber-950 dark:text-amber-100 shrink-0">
+                    {t("shell.demo_mode_badge")}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-1">
                 <button

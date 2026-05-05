@@ -1,14 +1,30 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { getIsTauri } from "@/utils/tauriDetection";
+import { cn } from "@/lib/utils";
+
+const BMC_HREF = "https://buymeacoffee.com/fiebigcx";
 
 /**
- * Loads the official Buy Me a Coffee widget script once (used in settings / about).
+ * Web: official Buy Me a Coffee widget (remote script).
+ * Desktop (Tauri): external scripts are unreliable in the webview — use a themed button + opener (system browser).
  */
 export function BuyMeCoffeeButton({ className }: { className?: string }) {
   const { t, i18n } = useTranslation();
+  const [isTauri] = useState(() => getIsTauri());
   const hostRef = useRef<HTMLDivElement>(null);
 
+  const openBmc = useCallback(async () => {
+    try {
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      await openUrl(BMC_HREF);
+    } catch {
+      window.open(BMC_HREF, "_blank", "noopener,noreferrer");
+    }
+  }, []);
+
   useEffect(() => {
+    if (isTauri) return;
     const host = hostRef.current;
     if (!host) return;
     host.innerHTML = "";
@@ -30,7 +46,24 @@ export function BuyMeCoffeeButton({ className }: { className?: string }) {
     return () => {
       host.innerHTML = "";
     };
-  }, [t, i18n.language]);
+  }, [isTauri, t, i18n.language]);
+
+  if (isTauri) {
+    return (
+      <button
+        type="button"
+        onClick={() => void openBmc()}
+        className={cn(
+          "inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-semibold shadow-sm transition-opacity",
+          "bg-[#FFDD00] text-black hover:opacity-90 border border-black/10",
+          className,
+        )}
+      >
+        <span aria-hidden>☕</span>
+        {t("settings.bmc_button_text")}
+      </button>
+    );
+  }
 
   return <div ref={hostRef} className={className} />;
 }

@@ -4,6 +4,8 @@ import type {
   Cashflow, Loan, Benefit, Transaction, TaxProfile,
   ProjectionScenario, UserCardLayout,
 } from "@/types/schema";
+import demoBundledHouseholdDataset from "@/data/samples/demo-household-snapshot.json";
+import { hydrateCashflow } from "@/utils/cashflowAccounts";
 
 const store = {
   households: new Map<string, Household>(),
@@ -19,6 +21,68 @@ const store = {
   scenarios: new Map<string, ProjectionScenario>(),
   cardLayouts: new Map<string, UserCardLayout>(),
 };
+
+/** Same shape as v1 vault export / plaintext backup (excluding optional `localSession`). */
+export type DemoBundledHouseholdDataset = {
+  version: 1;
+  households: Household[];
+  entities: Entity[];
+  accounts: Account[];
+  periods: Period[];
+  dayOverrides: PeriodDayOverride[];
+  cashflows: Cashflow[];
+  loans: Loan[];
+  benefits: Benefit[];
+  transactions: Transaction[];
+  taxProfiles: TaxProfile[];
+  scenarios: ProjectionScenario[];
+  cardLayouts: UserCardLayout[];
+};
+
+export function clearMockAdapterStores(): void {
+  store.households.clear();
+  store.entities.clear();
+  store.accounts.clear();
+  store.periods.clear();
+  store.dayOverrides.clear();
+  store.cashflows.clear();
+  store.loans.clear();
+  store.benefits.clear();
+  store.transactions.clear();
+  store.taxProfiles.clear();
+  store.scenarios.clear();
+  store.cardLayouts.clear();
+}
+
+function normalizeHouseholdImported(h: Household): Household {
+  return {
+    ...h,
+    country: h.country || (h.currency === "SEK" ? "SE" : ""),
+    city: h.city ?? null,
+  };
+}
+
+/** Load the bundled JSON sample into the mock adapter store (preview / onboarding). */
+export function hydrateMockAdapterFromBundledDemo(): void {
+  const data = demoBundledHouseholdDataset as DemoBundledHouseholdDataset;
+  if (data.version !== 1 || !Array.isArray(data.households)) {
+    throw new Error("Bundled demo dataset is invalid.");
+  }
+  clearMockAdapterStores();
+  for (const h of data.households) store.households.set(h.id, normalizeHouseholdImported(h));
+  for (const e of data.entities) store.entities.set(e.id, e);
+  for (const a of data.accounts) store.accounts.set(a.id, a);
+  for (const p of data.periods) store.periods.set(p.id, p);
+  for (const o of data.dayOverrides) store.dayOverrides.set(o.id, o);
+  for (const c of data.cashflows) store.cashflows.set(c.id, hydrateCashflow(c));
+  for (const l of data.loans) store.loans.set(l.id, l);
+  for (const b of data.benefits) store.benefits.set(b.id, b);
+  for (const tx of data.transactions) store.transactions.set(tx.id, tx);
+  for (const tp of data.taxProfiles) store.taxProfiles.set(tp.id, tp);
+  for (const s of data.scenarios) store.scenarios.set(s.id, s);
+  const layouts = Array.isArray(data.cardLayouts) ? data.cardLayouts : [];
+  for (const cl of layouts) store.cardLayouts.set(`${cl.user_id}:${cl.tab}`, cl);
+}
 
 function byHousehold<T extends { household_id?: string }>(
   map: Map<string, T>, hid: string, field = "household_id"
@@ -92,8 +156,9 @@ export const mockAdapter: BackendAdapter = {
   },
   async upsertCashflow(c) {
     const full = { ...store.cashflows.get(c.id), ...c, updated_at: now() } as Cashflow;
-    store.cashflows.set(c.id, full);
-    return full;
+    const hydrated = hydrateCashflow(full);
+    store.cashflows.set(c.id, hydrated);
+    return hydrated;
   },
   async archiveCashflow(id) {
     const c = store.cashflows.get(id);

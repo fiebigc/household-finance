@@ -43,6 +43,8 @@ export function useFinanceData() {
         setLoading(false);
         return;
       }
+    } else if (state.dataStorageMode === "demo") {
+      state.setFileStorageFolderName(null);
     }
     const be = getBackend(state.dataStorageMode);
     setLoading(true);

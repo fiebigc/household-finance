@@ -14,7 +14,9 @@ import {
 import { localSessionToPseudoUser } from "@/utils/localSessionUser";
 import { ensureDirectoryPermission } from "@/lib/fileDirectoryStorage";
 import { pickVaultFolder, canPickVaultFolder, readVaultRawFromPick } from "@/lib/vaultFolder";
-import { Lock, Mail, Eye, EyeOff, FolderOpen } from "lucide-react";
+import { hydrateMockAdapterFromBundledDemo } from "@/adapter/mock";
+import { demoPreviewPseudoUser } from "@/constants/demoMode";
+import { Lock, Mail, Eye, EyeOff, FolderOpen, Wallet, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type LoginMode = "cloud" | "local";
@@ -257,12 +259,31 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const handleEnterDemoHousehold = () => {
+    setError("");
+    setSubmitting(true);
+    try {
+      hydrateMockAdapterFromBundledDemo();
+      clearFinanceData();
+      setDataStorageMode("demo");
+      setUser(demoPreviewPseudoUser());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("auth.demo_failed"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-canvas px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="bg-card rounded-bento shadow-bento p-8">
           <div className="text-center mb-6">
-            <div className="text-3xl mb-2">💰</div>
+            <div className="flex justify-center mb-3">
+              <div className="rounded-full bg-primary/12 p-3 ring-1 ring-border/60 shadow-sm">
+                <Wallet className="w-8 h-8 text-primary" aria-hidden />
+              </div>
+            </div>
             <h1 className="text-xl font-semibold tracking-tight">{t("auth.title")}</h1>
             <p className="text-sm text-muted-foreground mt-1">
               {IS_WEBKIT_STANDALONE ? t("auth.subtitle_desktop") : t("auth.subtitle_web")}
@@ -515,6 +536,19 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
               </form>
             </>
           )}
+
+          <div className="mt-8 pt-6 border-t border-border/50 space-y-2">
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => void handleEnterDemoHousehold()}
+              className="w-full py-2.5 rounded-bento-inner border border-dashed border-primary/35 bg-primary/5 text-sm font-medium text-card-foreground hover:bg-primary/10 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <Sparkles className="w-4 h-4 text-primary shrink-0" aria-hidden />
+              {t("auth.try_demo")}
+            </button>
+            <p className="text-[10px] text-muted-foreground text-center leading-relaxed">{t("auth.try_demo_hint")}</p>
+          </div>
         </div>
       </div>
     </div>

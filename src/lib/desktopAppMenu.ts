@@ -47,12 +47,6 @@ async function buildAndSetMenu(opts: SyncDesktopAppMenuOptions): Promise<void> {
     text: opts.t("shell.native_menu_account"),
     items: [
       await MenuItem.new({
-        id: "menu-account-settings",
-        text: opts.t("shell.account_settings_menu"),
-        accelerator: "CmdOrCtrl+,",
-        action: (_id: string) => opts.onOpenSettings(),
-      }),
-      await MenuItem.new({
         id: "menu-refresh",
         text: opts.t("shell.refresh"),
         accelerator: "CmdOrCtrl+R",
@@ -98,6 +92,13 @@ async function buildAndSetMenu(opts: SyncDesktopAppMenuOptions): Promise<void> {
     items: [
       await PredefinedMenuItem.new({
         item: { About: { name: opts.appDisplayName } },
+      }),
+      await PredefinedMenuItem.new({ item: "Separator" }),
+      await MenuItem.new({
+        id: "menu-account-settings",
+        text: opts.t("shell.account_settings_menu"),
+        accelerator: "CmdOrCtrl+,",
+        action: (_id: string) => opts.onOpenSettings(),
       }),
       await PredefinedMenuItem.new({ item: "Separator" }),
       await PredefinedMenuItem.new({ item: "Hide" }),

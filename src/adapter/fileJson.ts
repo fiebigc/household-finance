@@ -248,6 +248,42 @@ function schedulePersist(): void {
   }, 120);
 }
 
+function cancelDebouncedPersistWithoutSaving(): void {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+}
+
+async function peekDiskEnvelopeEncrypted(): Promise<boolean> {
+  try {
+    const raw = (await readVaultDisk()).trim();
+    if (!raw) return false;
+    return isEncryptedEnvelope(JSON.parse(raw));
+  } catch {
+    return false;
+  }
+}
+
+/** Fill missing arrays so older backups or partial exports still hydrate cleanly. */
+function snapshotArraysFromImported(data: SnapshotOnDisk): SnapshotV1 {
+  return {
+    version: 1,
+    households: Array.isArray(data.households) ? data.households : [],
+    entities: Array.isArray(data.entities) ? data.entities : [],
+    accounts: Array.isArray(data.accounts) ? data.accounts : [],
+    periods: Array.isArray(data.periods) ? data.periods : [],
+    dayOverrides: Array.isArray(data.dayOverrides) ? data.dayOverrides : [],
+    cashflows: Array.isArray(data.cashflows) ? data.cashflows : [],
+    loans: Array.isArray(data.loans) ? data.loans : [],
+    benefits: Array.isArray(data.benefits) ? data.benefits : [],
+    transactions: Array.isArray(data.transactions) ? data.transactions : [],
+    taxProfiles: Array.isArray(data.taxProfiles) ? data.taxProfiles : [],
+    scenarios: Array.isArray(data.scenarios) ? data.scenarios : [],
+    cardLayouts: Array.isArray(data.cardLayouts) ? data.cardLayouts : [],
+  };
+}
+
 /** Must run before re-reading JSON from disk (e.g. refresh), or debounced writes can be lost. */
 async function flushPendingPersistence(): Promise<void> {
   if (persistTimer) {
@@ -601,6 +637,129 @@ export async function bootstrapUnlockLocalVault(
   cacheLoadedFromDisk = true;
   await flushPersist();
   return lastLocalSession!;
+}
+
+/**
+ * Replace in-memory vault + `household-finance-data.json` from a plaintext export or encrypted envelope backup file.
+ *
+ * Does **not** call `flushPendingPersistence` first — that would write stale in-memory rows over the live file before
+ * import completes.
+ */
+export async function restoreLocalVaultFromBackup(
+  backupText: string,
+  opts: {
+    profile: { display_name: string; email: string | null };
+    /** Needed to decrypt encrypted backups; needed to encrypt when disk is encrypted without an in-session key or to opt into encryption after restore. */
+    vaultPassword?: string;
+  },
+): Promise<void> {
+  cancelDebouncedPersistWithoutSaving();
+
+  if (!hasVaultFolder()) {
+    throw new Error("Choose your Finances folder (Data storage) before restoring.");
+  }
+
+  const trimmed = backupText.trim();
+  if (!trimmed) {
+    throw new Error("Backup file is empty.");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new Error("Could not parse backup as JSON.");
+  }
+
+  const vaultPassword = opts.vaultPassword?.trim() ?? "";
+
+  let root: SnapshotOnDisk;
+  if (isEncryptedEnvelope(parsed)) {
+    if (!vaultPassword) {
+      throw new Error(
+        "This backup is encrypted. Enter its vault password in the restore field below and try again.",
+      );
+    }
+    let inner: string;
+    try {
+      inner = await decryptEnvelope(parsed as EncryptedHouseholdEnvelope, vaultPassword);
+    } catch {
+      throw new Error("Could not decrypt this backup — wrong vault password?");
+    }
+    try {
+      const innerParsed = JSON.parse(inner) as SnapshotOnDisk;
+      if (
+        typeof innerParsed !== "object" ||
+        innerParsed === null ||
+        innerParsed.version !== 1 ||
+        !Array.isArray(innerParsed.households)
+      ) {
+        throw new Error("Bad inner");
+      }
+      root = innerParsed;
+    } catch {
+      throw new Error(
+        "Decrypted backup is not valid household data (expected top-level \"version\": 1 and \"households\" array).",
+      );
+    }
+  } else {
+    root = parsed as SnapshotOnDisk;
+    if (root.version !== 1 || !Array.isArray(root.households)) {
+      throw new Error(
+        "This file is not a household snapshot (expected \"version\": 1 and a \"households\" array).",
+      );
+    }
+  }
+
+  const snap = snapshotArraysFromImported(root);
+
+  const preservedSession = lastLocalSession;
+  hydrateFromSnapshot(snap);
+  lastLocalSession = preservedSession ?? root.localSession ?? null;
+  ensureLocalSession(opts.profile);
+
+  const diskEnc = await peekDiskEnvelopeEncrypted();
+
+  const hadKey = !!(localVaultCryptoKey && localVaultSaltB64);
+  if (!hadKey && diskEnc) {
+    if (vaultPassword.length < MIN_LOCAL_VAULT_PASSWORD_LENGTH) {
+      throw new Error(
+        `Cannot save restored data yet: linked file is encrypted. Enter your vault password (at least ${MIN_LOCAL_VAULT_PASSWORD_LENGTH} characters).`,
+      );
+    }
+    const rawDisk = (await readVaultDisk()).trim();
+    let diskParsed: unknown;
+    try {
+      diskParsed = JSON.parse(rawDisk);
+    } catch {
+      throw new Error("Could not read the encrypted vault file on disk.");
+    }
+    if (!isEncryptedEnvelope(diskParsed)) {
+      throw new Error("Could not read encryption metadata from the vault file on disk.");
+    }
+    const env = diskParsed as EncryptedHouseholdEnvelope;
+    try {
+      await decryptEnvelope(env, vaultPassword);
+    } catch {
+      throw new Error("That password does not unlock the current vault file on disk.");
+    }
+    localVaultSaltB64 = env.salt;
+    localVaultCryptoKey = await deriveVaultKey(vaultPassword, saltB64ToBytes(env.salt));
+  } else if (!hadKey && !diskEnc && vaultPassword.length >= MIN_LOCAL_VAULT_PASSWORD_LENGTH) {
+    const saltB64 = randomSaltB64();
+    localVaultSaltB64 = saltB64;
+    localVaultCryptoKey = await deriveVaultKey(vaultPassword, saltB64ToBytes(saltB64));
+  } else if (
+    !hadKey &&
+    !diskEnc &&
+    vaultPassword.length > 0 &&
+    vaultPassword.length < MIN_LOCAL_VAULT_PASSWORD_LENGTH
+  ) {
+    throw new Error(`Vault password must be at least ${MIN_LOCAL_VAULT_PASSWORD_LENGTH} characters when provided.`);
+  }
+
+  cacheLoadedFromDisk = true;
+  await flushPersist();
 }
 
 /**

@@ -23,7 +23,8 @@
     "native_menu_dashboard": "Dashboard",
     "menu_no_hidden_dashboard_cards": "Keine ausgeblendeten Karten hier",
     "account_settings_menu": "Account-Einstellungen…",
-    "desktop_menu_hint_cards": "Dieselben Aktionen finden sich in der Menüleiste unter „Dashboard“."
+    "desktop_menu_hint_cards": "Dieselben Aktionen finden sich in der Menüleiste unter „Dashboard“.",
+    "demo_mode_badge": "Demo"
   },
   "auth": {
     "title": "Personal Finances",
@@ -72,7 +73,10 @@
     "login_password_placeholder": "Passwort",
     "signing_in": "Melde dich an…",
     "sign_in": "Anmelden",
-    "cloud_not_configured": "Cloud-Anmeldung ist nicht konfiguriert."
+    "cloud_not_configured": "Cloud-Anmeldung ist nicht konfiguriert.",
+    "try_demo": "Demo-Haushalt ausprobieren",
+    "try_demo_hint": "Lädt Beispielpersonen, Konten, regelmäßige Zahlungsströme, Zeiträume, Kredite, Leistungen, Steuerprofile und ein Basis-Szenario – nur im Speicher des Browsers.",
+    "demo_failed": "Demo konnte nicht geladen werden."
   },
   "settings": {
     "accountTitle": "Konto & Haushalt",
@@ -109,7 +113,10 @@
     "about_heading": "Über Personal Finances",
     "about_blurb": "Lokal priorisierte Haushaltsplanung und Modellierung. Der Link ist freiwillig.",
     "app_version_label": "Version {{version}}",
-    "bmc_button_text": "Buy me a coffee"
+    "bmc_button_text": "Buy me a coffee",
+    "demo_backup_source_label": "die im Speicher eingebaute Demo-Kopie",
+    "demo_mode_storage_note": "In der Vorschau nutzt du die eingebaute Beispieldatei. Nichts wird auf die Festplatte oder in die Cloud geschrieben.",
+    "demo_mode_storage_hint": "Nach dem Ausprobieren abmelden und dann normal entsperren oder anmelden."
   },
   "fs": {
     "vault_file": "household-finance-data.json"
