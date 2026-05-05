@@ -128,7 +128,7 @@ function AccountOverviewCardContent() {
   const projectionForBalance = useProjection(BALANCE_CHART_PROJECTION_MONTHS);
 
   const { data: importChartData, series: chartBankSeries } = useMemo(
-    () => buildMonthlyAccountFlowChartData(accounts, transactions),
+    () => buildMonthlyAccountFlowChartData(accounts, transactions, { maxMonths: 24 }),
     [accounts, transactions],
   );
 

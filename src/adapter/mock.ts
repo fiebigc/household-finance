@@ -4,6 +4,7 @@ import type {
   Cashflow, Loan, Benefit, Transaction, TaxProfile,
   ProjectionScenario, UserCardLayout,
 } from "@/types/schema";
+import { patchHouseholdCardValues, type CardValuesForHousehold } from "@/stores/cardValuesStore";
 import demoBundledHouseholdDataset from "@/data/samples/demo-household-snapshot.json";
 import { hydrateCashflow } from "@/utils/cashflowAccounts";
 
@@ -37,6 +38,8 @@ export type DemoBundledHouseholdDataset = {
   taxProfiles: TaxProfile[];
   scenarios: ProjectionScenario[];
   cardLayouts: UserCardLayout[];
+  /** Seeds Planning / Overview card gauges when applying demo hydrate. */
+  cardValuesSeed?: Partial<CardValuesForHousehold>;
 };
 
 export function clearMockAdapterStores(): void {
@@ -64,7 +67,7 @@ function normalizeHouseholdImported(h: Household): Household {
 
 /** Load the bundled JSON sample into the mock adapter store (preview / onboarding). */
 export function hydrateMockAdapterFromBundledDemo(): void {
-  const data = demoBundledHouseholdDataset as DemoBundledHouseholdDataset;
+  const data = demoBundledHouseholdDataset as unknown as DemoBundledHouseholdDataset;
   if (data.version !== 1 || !Array.isArray(data.households)) {
     throw new Error("Bundled demo dataset is invalid.");
   }
@@ -82,6 +85,11 @@ export function hydrateMockAdapterFromBundledDemo(): void {
   for (const s of data.scenarios) store.scenarios.set(s.id, s);
   const layouts = Array.isArray(data.cardLayouts) ? data.cardLayouts : [];
   for (const cl of layouts) store.cardLayouts.set(`${cl.user_id}:${cl.tab}`, cl);
+
+  const seed = (data as DemoBundledHouseholdDataset).cardValuesSeed;
+  if (seed && data.households[0]?.id) {
+    patchHouseholdCardValues(data.households[0].id, seed);
+  }
 }
 
 function byHousehold<T extends { household_id?: string }>(

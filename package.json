@@ -18,6 +18,7 @@
     "icons:build-dollar-svg": "node packaging/gen-comfortaa-dollar-icon.mjs",
     "icons:generate": "tauri icon src-tauri/icons/app-icon.source.svg -o src-tauri/icons",
     "desktop:pkg:mac": "npm run desktop:build && bash packaging/macos/make-installer-pkg.sh",
+    "demo:data:build": "node scripts/build-demo-household-snapshot.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

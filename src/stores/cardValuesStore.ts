@@ -184,3 +184,38 @@ export function getMergedCardValues(householdId: string | null | undefined): Car
   const raw = useCardValuesStore.getState().byHousehold[householdId];
   return mergeDefaults(raw);
 }
+
+/**
+ * Deep-merge a partial patch into stored values for one household (used by demo hydrate).
+ */
+export function patchHouseholdCardValues(householdId: string, patch: Partial<CardValuesForHousehold>): void {
+  useCardValuesStore.getState().updateHousehold(householdId, (prev) => {
+    const base = mergeDefaults(prev);
+    const pPlan = patch.planning;
+    return mergeDefaults({
+      ...base,
+      ...patch,
+      overview: patch.overview ? { ...base.overview, ...patch.overview } : base.overview,
+      planning: pPlan
+        ? {
+            ...base.planning,
+            ...pPlan,
+            parentalByChild: { ...base.planning.parentalByChild, ...pPlan.parentalByChild },
+            unemploymentByAdult: { ...base.planning.unemploymentByAdult, ...pPlan.unemploymentByAdult },
+            holidayByAdult: { ...base.planning.holidayByAdult, ...pPlan.holidayByAdult },
+          }
+        : base.planning,
+      expenses: patch.expenses ? { ...base.expenses, ...patch.expenses } : base.expenses,
+      retirement: patch.retirement
+        ? {
+            ...base.retirement,
+            ...patch.retirement,
+            pensionStartingMonthlyByAdult: {
+              ...base.retirement.pensionStartingMonthlyByAdult,
+              ...patch.retirement.pensionStartingMonthlyByAdult,
+            },
+          }
+        : base.retirement,
+    });
+  });
+}

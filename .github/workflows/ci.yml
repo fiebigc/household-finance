@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, master]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -11,8 +12,10 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # ubuntu-latest queues can occasionally fail with "job was not acquired by Runner".
+    # Re-run workflow; see https://www.githubstatus.com — not a repo code failure.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
