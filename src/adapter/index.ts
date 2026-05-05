@@ -46,6 +46,8 @@ export interface BackendAdapter {
 
   /* ── Transactions ── */
   listTransactions(accountId: string, opts?: { limit?: number; offset?: number }): Promise<Transaction[]>;
+  /** All transactions for accounts in this household (any page size — use sparingly in UI). */
+  listTransactionsForHousehold(householdId: string): Promise<Transaction[]>;
   insertTransactions(txs: Omit<Transaction, "created_at">[]): Promise<number>;
 
   /* ── Tax profiles ── */

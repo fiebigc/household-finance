@@ -1,0 +1,18 @@
+{
+  "meta": {
+    "notes": "Fallback illustrative withholding fractions used only when no tax_profiles row exists for an entity. Prefer configuring entity tax_profiles in-app. Keys in by_country_city must be ascii city slugs matching slugifyHouseholdCity (e.g. SE|stockholm)."
+  },
+  "fallbackEstimatedWithholdingFraction": 0.32,
+  "byCountry": {
+    "SE": { "estimatedWithholdingFraction": 0.32 },
+    "DK": { "estimatedWithholdingFraction": 0.37 },
+    "NO": { "estimatedWithholdingFraction": 0.36 },
+    "FI": { "estimatedWithholdingFraction": 0.35 },
+    "DE": { "estimatedWithholdingFraction": 0.39 }
+  },
+  "byCountryCity": {
+    "SE|stockholm": { "estimatedWithholdingFraction": 0.32 },
+    "SE|goteborg": { "estimatedWithholdingFraction": 0.32 },
+    "SE|malmo": { "estimatedWithholdingFraction": 0.32 }
+  }
+}

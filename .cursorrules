@@ -60,3 +60,9 @@ The projection engine must implement this. Never short-circuit it.
 ### 6. Projection engine is a pure function
 No side effects, no DB calls, no component state. Takes entity tree + options,
 returns MonthlyProjection[]. Lives in src/engine/projection.ts only.
+
+---
+
+## Agent workflow
+
+When a task needs CLI verification or data imports (`npm run …`, `node scripts/…`), run those commands here using repo paths and the default household snapshot under `~/Documents/Finances/` when applicable — do not only tell the user to run them.

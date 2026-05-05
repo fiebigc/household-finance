@@ -1,4 +1,4 @@
-import type { Period, PeriodDayOverride, WeeklyPattern } from "@/types/schema";
+import type { Period, PeriodDayOverride, PeriodType, WeeklyPattern } from "@/types/schema";
 import { eachDayOfInterval, getDay, format } from "date-fns";
 
 const DAY_KEYS: (keyof WeeklyPattern)[] = [
@@ -46,6 +46,21 @@ export function countActiveDays(
   return { activeDays: active, totalDays: days.length };
 }
 
+/**
+ * When pct_fte is null (never set), absence-type periods should not assume full-time employment —
+ * otherwise föräldrapenning gets (1−FTE)×weekdays = 0. Employed-style defaults stay at 100%.
+ */
+function impliedPctFteWhenUnset(type: PeriodType): number {
+  switch (type) {
+    case "parental_leave":
+    case "sick_leave":
+    case "unemployed":
+      return 0;
+    default:
+      return 100;
+  }
+}
+
 export function effectiveFte(
   period: Period,
   overrides: PeriodDayOverride[],
@@ -53,14 +68,29 @@ export function effectiveFte(
   rangeEnd: Date
 ): number {
   if (period.weekly_pattern) {
-    const { activeDays, totalDays } = countActiveDays(period, overrides, rangeStart, rangeEnd);
+    const { activeDays } = countActiveDays(period, overrides, rangeStart, rangeEnd);
     const weekdays = countWeekdays(rangeStart, rangeEnd);
-    return weekdays > 0 ? activeDays / weekdays : 0;
+    let fte = weekdays > 0 ? activeDays / weekdays : 0;
+    // Full active Mon–Fri schedule during absence periods means zero payroll employment from this row —
+    // otherwise föräldrapenning / unemployment compensation days become (1−FTE)×weekdays = 0.
+    if (
+      (period.type === "parental_leave" || period.type === "unemployed") &&
+      weekdays > 0 &&
+      fte >= 0.99
+    ) {
+      fte = 0;
+    }
+    // When pct_fte is explicitly set below 100 (e.g. 80%), cap the schedule-derived FTE
+    // so "employed 80% with Mon-Fri active" yields 0.8 rather than 1.0.
+    if (period.pct_fte != null && period.pct_fte < 100) {
+      fte = Math.min(fte, period.pct_fte / 100);
+    }
+    return fte;
   }
-  return (period.pct_fte ?? 100) / 100;
+  return (period.pct_fte ?? impliedPctFteWhenUnset(period.type)) / 100;
 }
 
-function countWeekdays(start: Date, end: Date): number {
+export function countWeekdays(start: Date, end: Date): number {
   const days = eachDayOfInterval({ start, end });
   return days.filter((d) => {
     const dow = getDay(d);

@@ -133,6 +133,17 @@ export const mockAdapter: BackendAdapter = {
     if (opts?.limit) txs = txs.slice(0, opts.limit);
     return txs;
   },
+  async listTransactionsForHousehold(hid) {
+    const eids = new Set(byHousehold(store.entities, hid).map(e => e.id));
+    const aids = new Set(
+      [...store.accounts.values()]
+        .filter(a => !a.archived_at && eids.has(a.entity_id))
+        .map(a => a.id)
+    );
+    return [...store.transactions.values()]
+      .filter(t => aids.has(t.account_id))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  },
   async insertTransactions(txs) {
     txs.forEach(t => store.transactions.set(t.id, { ...t, created_at: now() } as Transaction));
     return txs.length;

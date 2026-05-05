@@ -6,10 +6,30 @@ import type {
 } from "@/types/schema";
 import {
   loadDirectoryHandleFromIdb,
-  ensureDirectoryPermission,
+  hasReadWriteDirectoryPermission,
+  saveDirectoryHandleToIdb,
+  clearDirectoryHandleFromIdb,
+  setPersistedDesktopVaultPath,
+  getPersistedDesktopVaultPath,
 } from "@/lib/fileDirectoryStorage";
+import type { VaultFolderPick } from "@/lib/vaultFolder";
+import { getIsTauri } from "@/utils/tauriDetection";
+import { hydrateCashflow } from "@/utils/cashflowAccounts";
+import {
+  decryptEnvelope,
+  decryptWithKey,
+  deriveVaultKey,
+  encryptWithKey,
+  isEncryptedEnvelope,
+  randomSaltB64,
+  saltB64ToBytes,
+  type EncryptedHouseholdEnvelope,
+} from "@/utils/localVaultCrypto";
 
 const DATA_FILE = "household-finance-data.json";
+
+/** Minimum length for a new local vault encryption password. */
+export const MIN_LOCAL_VAULT_PASSWORD_LENGTH = 8;
 
 type SnapshotV1 = {
   version: 1;
@@ -27,6 +47,17 @@ type SnapshotV1 = {
   cardLayouts: UserCardLayout[];
 };
 
+/** Persisted next to household rows so card layouts and UI can key off `user_id`. */
+export type LocalFileSession = {
+  user_id: string;
+  email: string | null;
+  display_name: string | null;
+};
+
+type SnapshotOnDisk = SnapshotV1 & {
+  localSession?: LocalFileSession;
+};
+
 const store = {
   households: new Map<string, Household>(),
   entities: new Map<string, Entity>(),
@@ -42,10 +73,18 @@ const store = {
   cardLayouts: new Map<string, UserCardLayout>(),
 };
 
+export type { VaultFolderPick };
+
 let dirHandle: FileSystemDirectoryHandle | null = null;
+/** Desktop bundle: filesystem path chosen via Tauri dialog (no FileSystemDirectoryHandle). */
+let desktopVaultPath: string | null = null;
 let cacheLoadedFromDisk = false;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let loadChain: Promise<void> = Promise.resolve();
+
+let localVaultCryptoKey: CryptoKey | null = null;
+let localVaultSaltB64: string | null = null;
+let lastLocalSession: LocalFileSession | null = null;
 
 function byHousehold<T extends { household_id?: string }>(
   map: Map<string, T>,
@@ -56,6 +95,29 @@ function byHousehold<T extends { household_id?: string }>(
 }
 
 const now = () => new Date().toISOString();
+
+function normalizeHousehold(h: Household): Household {
+  return {
+    ...h,
+    country: h.country || (h.currency === "SEK" ? "SE" : ""),
+    city: h.city ?? null,
+  };
+}
+
+function snapshotWithoutSession(data: SnapshotOnDisk): SnapshotV1 {
+  const { localSession: _ls, ...rest } = data;
+  return rest as SnapshotV1;
+}
+
+function ensureLocalSession(profile: { display_name: string; email: string | null }) {
+  if (!lastLocalSession) {
+    lastLocalSession = {
+      user_id: crypto.randomUUID(),
+      email: profile.email?.trim() ? profile.email.trim() : null,
+      display_name: profile.display_name.trim() || "Local user",
+    };
+  }
+}
 
 function hydrateFromSnapshot(data: SnapshotV1) {
   store.households.clear();
@@ -70,12 +132,12 @@ function hydrateFromSnapshot(data: SnapshotV1) {
   store.taxProfiles.clear();
   store.scenarios.clear();
   store.cardLayouts.clear();
-  for (const h of data.households) store.households.set(h.id, h);
+  for (const h of data.households) store.households.set(h.id, normalizeHousehold(h));
   for (const e of data.entities) store.entities.set(e.id, e);
   for (const a of data.accounts) store.accounts.set(a.id, a);
   for (const p of data.periods) store.periods.set(p.id, p);
   for (const o of data.dayOverrides) store.dayOverrides.set(o.id, o);
-  for (const c of data.cashflows) store.cashflows.set(c.id, c);
+  for (const c of data.cashflows) store.cashflows.set(c.id, hydrateCashflow(c as Cashflow));
   for (const l of data.loans) store.loans.set(l.id, l);
   for (const b of data.benefits) store.benefits.set(b.id, b);
   for (const t of data.transactions) store.transactions.set(t.id, t);
@@ -86,8 +148,8 @@ function hydrateFromSnapshot(data: SnapshotV1) {
   }
 }
 
-function toSnapshot(): SnapshotV1 {
-  return {
+function toSnapshot(): SnapshotOnDisk {
+  const base: SnapshotV1 = {
     version: 1,
     households: [...store.households.values()],
     entities: [...store.entities.values()],
@@ -102,6 +164,8 @@ function toSnapshot(): SnapshotV1 {
     scenarios: [...store.scenarios.values()],
     cardLayouts: [...store.cardLayouts.values()],
   };
+  if (lastLocalSession) return { ...base, localSession: lastLocalSession };
+  return base;
 }
 
 async function readFileFromDirectory(handle: FileSystemDirectoryHandle): Promise<string> {
@@ -117,23 +181,120 @@ async function writeFileToDirectory(handle: FileSystemDirectoryHandle, json: str
   await writable.close();
 }
 
+function hasVaultFolder(): boolean {
+  return desktopVaultPath !== null || dirHandle !== null;
+}
+
+async function readVaultDisk(): Promise<string> {
+  if (desktopVaultPath) {
+    const { tauriReadVaultFile } = await import("@/lib/tauriVaultIo");
+    return tauriReadVaultFile(desktopVaultPath);
+  }
+  if (!dirHandle) return "";
+  return readFileFromDirectory(dirHandle);
+}
+
+async function writeVaultDisk(json: string): Promise<void> {
+  if (desktopVaultPath) {
+    const { tauriWriteVaultFile } = await import("@/lib/tauriVaultIo");
+    await tauriWriteVaultFile(desktopVaultPath, json);
+    return;
+  }
+  if (!dirHandle) throw new Error("No folder linked for file storage.");
+  await writeFileToDirectory(dirHandle, json);
+}
+
 async function flushPersist(): Promise<void> {
-  if (!dirHandle) return;
+  if (!hasVaultFolder()) return;
   try {
-    const json = JSON.stringify(toSnapshot(), null, 2);
-    await writeFileToDirectory(dirHandle, json);
+    // Never plaintext-write without an unlock key while the file is still encrypted — that wipes the vault
+    // (happens after "choose folder" / refresh without going through bootstrapUnlockLocalVault).
+    if (!localVaultCryptoKey || !localVaultSaltB64) {
+      const raw = (await readVaultDisk()).trim();
+      if (raw) {
+        try {
+          const peek: unknown = JSON.parse(raw);
+          if (isEncryptedEnvelope(peek)) return;
+        } catch {
+          /* allow overwrite path for unreadable blobs */
+        }
+      }
+    }
+    const snap = toSnapshot();
+    const inner = JSON.stringify(snap, null, 2);
+    if (localVaultCryptoKey && localVaultSaltB64) {
+      const { iv, ciphertext } = await encryptWithKey(inner, localVaultCryptoKey);
+      const wrapped: EncryptedHouseholdEnvelope = {
+        format: "encrypted-household-v1",
+        salt: localVaultSaltB64,
+        iv,
+        ciphertext,
+      };
+      await writeVaultDisk(JSON.stringify(wrapped, null, 2));
+    } else {
+      await writeVaultDisk(inner);
+    }
   } catch (e) {
     console.error("Failed to persist household JSON:", e);
   }
 }
 
 function schedulePersist(): void {
-  if (!dirHandle) return;
+  if (!hasVaultFolder()) return;
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     persistTimer = null;
     void flushPersist();
   }, 120);
+}
+
+/** Must run before re-reading JSON from disk (e.g. refresh), or debounced writes can be lost. */
+async function flushPendingPersistence(): Promise<void> {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  await flushPersist();
+}
+
+/** Wait for debounced writes — call before sync/migration off-disk reads. */
+export async function flushFileJsonPersistence(): Promise<void> {
+  await flushPendingPersistence();
+}
+
+/**
+ * Folder is linked and vault file exists encrypted, but this session never derived the vault key
+ * (`bootstrapUnlockLocalVault` did not succeed). Persist must not plaintext-overwrite disk in this state.
+ */
+export async function isLocalVaultLockedOnDisk(): Promise<boolean> {
+  if (!hasVaultFolder()) return false;
+  if (localVaultCryptoKey && localVaultSaltB64) return false;
+  const text = (await readVaultDisk()).trim();
+  const t = text.trim();
+  if (!t) return false;
+  try {
+    const p: unknown = JSON.parse(t);
+    return isEncryptedEnvelope(p);
+  } catch {
+    return false;
+  }
+}
+
+export function patchLocalFileSession(patch: Partial<Pick<LocalFileSession, "display_name" | "email">>): void {
+  if (!lastLocalSession) return;
+  lastLocalSession = { ...lastLocalSession, ...patch };
+  schedulePersist();
+}
+
+export function getBoundLocalFileSession(): LocalFileSession | null {
+  return lastLocalSession ? { ...lastLocalSession } : null;
+}
+
+/** All tax profiles for entities in this household (file backing store only). */
+export async function listTaxProfilesForHouseholdFileStore(householdId: string): Promise<TaxProfile[]> {
+  await ensureLoaded();
+  const eids = new Set(byHousehold(store.entities, householdId).map((e) => e.id));
+  return [...store.taxProfiles.values()].filter((t) => eids.has(t.entity_id));
 }
 
 function queueLoad(): Promise<void> {
@@ -142,25 +303,49 @@ function queueLoad(): Promise<void> {
 }
 
 async function doLoad(): Promise<void> {
-  if (!dirHandle) {
+  if (!hasVaultFolder()) {
     cacheLoadedFromDisk = true;
     return;
   }
   try {
-    const text = (await readFileFromDirectory(dirHandle)).trim();
+    const text = (await readVaultDisk()).trim();
     if (!text) {
       hydrateFromSnapshot(emptySnapshot());
+      lastLocalSession = null;
       cacheLoadedFromDisk = true;
       return;
     }
-    const parsed = JSON.parse(text) as SnapshotV1;
-    if (parsed?.version !== 1 || !Array.isArray(parsed.households)) {
+    const parsed: unknown = JSON.parse(text);
+    if (isEncryptedEnvelope(parsed)) {
+      if (!localVaultCryptoKey || !localVaultSaltB64 || parsed.salt !== localVaultSaltB64) {
+        hydrateFromSnapshot(emptySnapshot());
+        lastLocalSession = null;
+        cacheLoadedFromDisk = true;
+        return;
+      }
+      const inner = await decryptWithKey(parsed.ciphertext, parsed.iv, localVaultCryptoKey);
+      const root = JSON.parse(inner) as SnapshotOnDisk;
+      if (root?.version !== 1 || !Array.isArray(root.households)) {
+        hydrateFromSnapshot(emptySnapshot());
+        lastLocalSession = null;
+      } else {
+        hydrateFromSnapshot(snapshotWithoutSession(root));
+        lastLocalSession = root.localSession ?? null;
+      }
+      cacheLoadedFromDisk = true;
+      return;
+    }
+    const plain = parsed as SnapshotOnDisk;
+    if (plain?.version !== 1 || !Array.isArray(plain.households)) {
       hydrateFromSnapshot(emptySnapshot());
+      lastLocalSession = null;
     } else {
-      hydrateFromSnapshot(parsed);
+      hydrateFromSnapshot(snapshotWithoutSession(plain));
+      lastLocalSession = plain.localSession ?? null;
     }
   } catch {
     hydrateFromSnapshot(emptySnapshot());
+    lastLocalSession = null;
   }
   cacheLoadedFromDisk = true;
 }
@@ -184,28 +369,60 @@ function emptySnapshot(): SnapshotV1 {
 }
 
 export function setFileStorageDirectory(handle: FileSystemDirectoryHandle | null): void {
+  desktopVaultPath = null;
+  setPersistedDesktopVaultPath(null);
   dirHandle = handle;
   cacheLoadedFromDisk = false;
   if (!handle) {
+    localVaultCryptoKey = null;
+    localVaultSaltB64 = null;
+    lastLocalSession = null;
     hydrateFromSnapshot(emptySnapshot());
     cacheLoadedFromDisk = true;
   }
 }
 
+/** Point file storage at an absolute desktop path (Tauri) without a DirectoryHandle. */
+export function attachDesktopVaultDirectory(path: string): void {
+  dirHandle = null;
+  desktopVaultPath = path.trim();
+  cacheLoadedFromDisk = false;
+}
+
+/** Clear crypto + in-memory rows after local sign-out; keeps folder handle for next unlock. */
+export function lockLocalVaultForSignOut(): void {
+  localVaultCryptoKey = null;
+  localVaultSaltB64 = null;
+  lastLocalSession = null;
+  hydrateFromSnapshot(emptySnapshot());
+  cacheLoadedFromDisk = true;
+}
+
 /** Drop in-memory file backend state (e.g. when switching to cloud). IndexedDB handle is kept. */
 export function clearFileStorageSession(): void {
+  desktopVaultPath = null;
+  setPersistedDesktopVaultPath(null);
   dirHandle = null;
   cacheLoadedFromDisk = false;
+  localVaultCryptoKey = null;
+  localVaultSaltB64 = null;
+  lastLocalSession = null;
   hydrateFromSnapshot(emptySnapshot());
   cacheLoadedFromDisk = true;
 }
 
 export function getFileStorageDirectoryName(): string | null {
-  return dirHandle?.name ?? null;
+  if (dirHandle) return dirHandle.name;
+  if (desktopVaultPath) {
+    const norm = desktopVaultPath.replace(/\\/g, "/").replace(/\/$/, "");
+    const parts = norm.split("/").filter(Boolean);
+    return parts[parts.length - 1] ?? desktopVaultPath;
+  }
+  return null;
 }
 
 export function hasFileStorageDirectory(): boolean {
-  return dirHandle !== null;
+  return desktopVaultPath !== null || dirHandle !== null || getPersistedDesktopVaultPath() !== null;
 }
 
 async function ensureLoaded(): Promise<void> {
@@ -214,15 +431,231 @@ async function ensureLoaded(): Promise<void> {
 }
 
 export async function restoreFileStorageFromDisk(): Promise<boolean> {
-  if (dirHandle) return true;
+  await flushPendingPersistence();
+
+  const rememberedPath = getPersistedDesktopVaultPath();
+  if (rememberedPath && getIsTauri()) {
+    desktopVaultPath = rememberedPath;
+    cacheLoadedFromDisk = false;
+    await queueLoad();
+    return true;
+  }
+
+  if (dirHandle || desktopVaultPath) {
+    // Re-read household-finance-data.json so CLI imports (e.g. akassa, parental leave) show up after refresh.
+    cacheLoadedFromDisk = false;
+    await queueLoad();
+    return true;
+  }
   const h = await loadDirectoryHandleFromIdb();
   if (!h) return false;
-  const ok = await ensureDirectoryPermission(h);
+  // Do not call requestPermission() here — it requires user activation (e.g. folder picker settings).
+  // If permission was only "prompt", user must re-open Account settings and choose the folder again.
+  const ok = await hasReadWriteDirectoryPermission(h);
   if (!ok) return false;
   setFileStorageDirectory(h);
   cacheLoadedFromDisk = false;
   await queueLoad();
   return true;
+}
+
+export async function readVaultFileRaw(handle: FileSystemDirectoryHandle): Promise<string> {
+  try {
+    return (await readFileFromDirectory(handle)).trim();
+  } catch {
+    return "";
+  }
+}
+
+/** Bound folder + raw file text (encrypted envelope or plaintext JSON). */
+export async function readBoundVaultFile(): Promise<
+  | { kind: "browser"; handle: FileSystemDirectoryHandle; text: string }
+  | { kind: "desktop"; path: string; text: string }
+  | null
+> {
+  const persisted = getPersistedDesktopVaultPath();
+  if (persisted && getIsTauri()) {
+    if (!desktopVaultPath) desktopVaultPath = persisted;
+    const text = (await readVaultDisk()).trim();
+    return { kind: "desktop", path: persisted, text };
+  }
+  if (!dirHandle) return null;
+  const text = await readVaultFileRaw(dirHandle);
+  return { kind: "browser", handle: dirHandle, text };
+}
+
+export async function bootstrapNewLocalVault(
+  pick: VaultFolderPick,
+  password: string,
+  profile: { display_name: string; email: string | null },
+): Promise<LocalFileSession> {
+  if (password.length < MIN_LOCAL_VAULT_PASSWORD_LENGTH) {
+    throw new Error(`Vault password must be at least ${MIN_LOCAL_VAULT_PASSWORD_LENGTH} characters.`);
+  }
+  await flushPendingPersistence();
+  const session: LocalFileSession = {
+    user_id: crypto.randomUUID(),
+    email: profile.email?.trim() ? profile.email.trim() : null,
+    display_name: profile.display_name.trim() || "Local user",
+  };
+  lastLocalSession = session;
+  const saltB64 = randomSaltB64();
+  localVaultSaltB64 = saltB64;
+  localVaultCryptoKey = await deriveVaultKey(password, saltB64ToBytes(saltB64));
+
+  if (pick.kind === "desktop") {
+    desktopVaultPath = pick.path;
+    dirHandle = null;
+    setPersistedDesktopVaultPath(pick.path);
+    await clearDirectoryHandleFromIdb().catch(() => {});
+  } else {
+    desktopVaultPath = null;
+    setPersistedDesktopVaultPath(null);
+    dirHandle = pick.handle;
+    await saveDirectoryHandleToIdb(pick.handle);
+  }
+
+  cacheLoadedFromDisk = false;
+  hydrateFromSnapshot(emptySnapshot());
+  cacheLoadedFromDisk = true;
+  await flushPersist();
+  return session;
+}
+
+export async function bootstrapUnlockLocalVault(
+  pick: VaultFolderPick,
+  password: string,
+  fileText: string,
+  profileFallback: { display_name: string; email: string | null },
+): Promise<LocalFileSession> {
+  await flushPendingPersistence();
+
+  const trimmed = fileText.trim();
+  if (!trimmed) {
+    return bootstrapNewLocalVault(pick, password, profileFallback);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new Error("Could not parse household JSON.");
+  }
+
+  if (pick.kind === "desktop") {
+    desktopVaultPath = pick.path;
+    dirHandle = null;
+    setPersistedDesktopVaultPath(pick.path);
+    await clearDirectoryHandleFromIdb().catch(() => {});
+  } else {
+    desktopVaultPath = null;
+    setPersistedDesktopVaultPath(null);
+    dirHandle = pick.handle;
+    await saveDirectoryHandleToIdb(pick.handle);
+  }
+
+  if (isEncryptedEnvelope(parsed)) {
+    let inner: string;
+    try {
+      inner = await decryptEnvelope(parsed, password);
+    } catch {
+      localVaultCryptoKey = null;
+      localVaultSaltB64 = null;
+      throw new Error("Wrong password or unreadable vault.");
+    }
+    localVaultSaltB64 = parsed.salt;
+    localVaultCryptoKey = await deriveVaultKey(password, saltB64ToBytes(parsed.salt));
+    const root = JSON.parse(inner) as SnapshotOnDisk;
+    if (root?.version !== 1 || !Array.isArray(root.households)) {
+      localVaultCryptoKey = null;
+      localVaultSaltB64 = null;
+      throw new Error("Invalid vault data.");
+    }
+    hydrateFromSnapshot(snapshotWithoutSession(root));
+    lastLocalSession = root.localSession ?? null;
+    ensureLocalSession(profileFallback);
+    cacheLoadedFromDisk = true;
+    await flushPersist();
+    return lastLocalSession!;
+  }
+
+  localVaultSaltB64 = null;
+  localVaultCryptoKey = null;
+
+  const root = parsed as SnapshotOnDisk;
+  if (root?.version !== 1 || !Array.isArray(root.households)) {
+    throw new Error("Invalid household JSON.");
+  }
+  hydrateFromSnapshot(snapshotWithoutSession(root));
+  lastLocalSession = root.localSession ?? null;
+  ensureLocalSession(profileFallback);
+
+  if (!password.trim()) {
+    cacheLoadedFromDisk = true;
+    return lastLocalSession!;
+  }
+
+  const saltB64 = randomSaltB64();
+  localVaultSaltB64 = saltB64;
+  localVaultCryptoKey = await deriveVaultKey(password, saltB64ToBytes(saltB64));
+  cacheLoadedFromDisk = true;
+  await flushPersist();
+  return lastLocalSession!;
+}
+
+/**
+ * Re-encrypt the vault file with a new password. Verifies the current password against the file;
+ * only works when the on-disk format is encrypted-household-v1.
+ */
+export async function changeLocalVaultPassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  if (!hasVaultFolder()) throw new Error("No folder linked for file storage.");
+  if (!localVaultCryptoKey || !localVaultSaltB64) throw new Error("Unlock the vault before changing the password.");
+  if (newPassword.length < MIN_LOCAL_VAULT_PASSWORD_LENGTH) {
+    throw new Error(`New password must be at least ${MIN_LOCAL_VAULT_PASSWORD_LENGTH} characters.`);
+  }
+  if (currentPassword === newPassword) {
+    throw new Error("New password must be different from the current one.");
+  }
+
+  await flushPendingPersistence();
+
+  const raw = (await readVaultDisk()).trim();
+  if (!raw) throw new Error("Vault file is empty or missing.");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("Could not read the vault file.");
+  }
+  if (!isEncryptedEnvelope(parsed)) {
+    throw new Error(
+      "Password change applies to encrypted vault files only. Export a backup, sign out, and create a new encrypted vault if needed.",
+    );
+  }
+  try {
+    await decryptEnvelope(parsed, currentPassword);
+  } catch {
+    throw new Error("Current vault password is incorrect.");
+  }
+
+  const inner = JSON.stringify(toSnapshot(), null, 2);
+  const newSaltB64 = randomSaltB64();
+  const newKey = await deriveVaultKey(newPassword, saltB64ToBytes(newSaltB64));
+  const { iv, ciphertext } = await encryptWithKey(inner, newKey);
+
+  localVaultSaltB64 = newSaltB64;
+  localVaultCryptoKey = newKey;
+
+  const wrapped: EncryptedHouseholdEnvelope = {
+    format: "encrypted-household-v1",
+    salt: newSaltB64,
+    iv,
+    ciphertext,
+  };
+  await writeVaultDisk(JSON.stringify(wrapped, null, 2));
 }
 
 export const fileJsonAdapter: BackendAdapter = {
@@ -387,6 +820,18 @@ export const fileJsonAdapter: BackendAdapter = {
     if (opts?.offset) txs = txs.slice(opts.offset);
     if (opts?.limit) txs = txs.slice(0, opts.limit);
     return txs;
+  },
+  async listTransactionsForHousehold(hid) {
+    await ensureLoaded();
+    const eids = new Set(byHousehold(store.entities, hid).map((e) => e.id));
+    const aids = new Set(
+      [...store.accounts.values()]
+        .filter((a) => !a.archived_at && eids.has(a.entity_id))
+        .map((a) => a.id)
+    );
+    return [...store.transactions.values()]
+      .filter((t) => aids.has(t.account_id))
+      .sort((a, b) => b.date.localeCompare(a.date));
   },
   async insertTransactions(txs) {
     await ensureLoaded();

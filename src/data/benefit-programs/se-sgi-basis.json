@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "jurisdiction": "SE",
+    "topic": "Sjukanmälningsgrundande inkomst (SGI) — basis for parental allowance, sickness cash benefits, etc.",
+    "disclaimer": "Illustrative summary for planning in the app. Official assessment is made by Försäkringskassan; eligibility, reference months, and protection periods have detailed legal conditions."
+  },
+  "annualisation": {
+    "summary": "Income that counts toward SGI is taken from qualifying employment income over a reference period. A common pattern is: sum the income for the last full months of qualifying employment, divide by the number of those months, then multiply by 12 to express an annual SGI figure.",
+    "typical_reference_months": 6,
+    "formula": "annual_sgi_equivalent = (sum_of_qualifying_employment_income_in_reference_period / number_of_months_in_sum) * 12",
+    "example_typical_six_months": "If the sum of qualifying employment income from the last six full months is S, then annual SGI corresponds to (S / 6) * 12."
+  },
+  "protection": {
+    "summary": "Under certain conditions your SGI level is protected (not lowered) when you have no or lower pay from work — for example during leave, holiday, unemployment or certain self-employment phases. Exact rules and duration differ by situation.",
+    "modes_mentioned": [
+      "unpaid leave",
+      "paid annual leave (employment continues)",
+      "unemployment benefit from a-kassa",
+      "parental leave",
+      "first year qualifying as self-employed under specific rules"
+    ],
+    "period_types_for_modeling_in_app": {
+      "often_treated_as_absence_with_frozen_or_protected_basis": [
+        "parental_leave",
+        "unemployed",
+        "unpaid_leave",
+        "sick_leave"
+      ],
+      "notes": "Vacation while still employed is commonly modeled as employed; self_employed may use metadata for first-year flags. The app does not automatically decide legal protection — periods are for illustration and projection only."
+    }
+  }
+}

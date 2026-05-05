@@ -1,18 +1,23 @@
 import { cn } from "@/lib/utils";
 import type { CardSize } from "@/types/schema";
-import { GripVertical, Maximize2, Minimize2, EyeOff } from "lucide-react";
+import { GripVertical, Maximize2, Minimize2, EyeOff, Pencil } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 interface CardProps {
   title: string;
   subtitle?: string;
+  /** Shown as the browser tooltip when hovering the title (use for longer explanations). */
+  titleTooltip?: string;
   size?: CardSize;
   icon?: ReactNode;
+  /** Shown in the header row before card controls (e.g. key figures). */
+  headerTrailing?: ReactNode;
   children: ReactNode;
   className?: string;
   loading?: boolean;
   onHide?: () => void;
   onResize?: (size: CardSize) => void;
+  onEdit?: () => void;
   dragHandleProps?: Record<string, unknown>;
 }
 
@@ -21,13 +26,16 @@ const sizeOrder: CardSize[] = ["mini", "small", "medium", "large", "full"];
 export function Card({
   title,
   subtitle,
+  titleTooltip,
   size = "medium",
   icon,
+  headerTrailing,
   children,
   className,
   loading,
   onHide,
   onResize,
+  onEdit,
   dragHandleProps,
 }: CardProps) {
   const [showControls, setShowControls] = useState(false);
@@ -60,29 +68,50 @@ export function Card({
           )}
           {icon && <span className="shrink-0 text-primary">{icon}</span>}
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold truncate">{title}</h3>
+            <h3
+              className={cn(
+                "text-sm font-semibold truncate",
+                titleTooltip && "cursor-help underline decoration-dotted decoration-border underline-offset-2"
+              )}
+              title={titleTooltip ?? undefined}
+            >
+              {title}
+            </h3>
             {subtitle && <p className="text-xs text-muted-foreground truncate">{subtitle}</p>}
           </div>
         </div>
-        {showControls && (onResize || onHide) && (
-          <div className="flex items-center gap-1 shrink-0">
-            {onResize && sizeIdx > 0 && (
-              <button onClick={shrink} className="p-1 rounded hover:bg-muted/80 text-muted-foreground" title="Shrink">
-                <Minimize2 className="w-3 h-3" />
-              </button>
-            )}
-            {onResize && sizeIdx < sizeOrder.length - 1 && (
-              <button onClick={grow} className="p-1 rounded hover:bg-muted/80 text-muted-foreground" title="Grow">
-                <Maximize2 className="w-3 h-3" />
-              </button>
-            )}
-            {onHide && (
-              <button onClick={onHide} className="p-1 rounded hover:bg-muted/80 text-muted-foreground" title="Hide card">
-                <EyeOff className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {headerTrailing}
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="p-1 rounded hover:bg-muted/80 text-muted-foreground"
+              title="Edit values"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {showControls && (onResize || onHide) && (
+            <>
+              {onResize && sizeIdx > 0 && (
+                <button onClick={shrink} className="p-1 rounded hover:bg-muted/80 text-muted-foreground" title="Shrink">
+                  <Minimize2 className="w-3 h-3" />
+                </button>
+              )}
+              {onResize && sizeIdx < sizeOrder.length - 1 && (
+                <button onClick={grow} className="p-1 rounded hover:bg-muted/80 text-muted-foreground" title="Grow">
+                  <Maximize2 className="w-3 h-3" />
+                </button>
+              )}
+              {onHide && (
+                <button onClick={onHide} className="p-1 rounded hover:bg-muted/80 text-muted-foreground" title="Hide card">
+                  <EyeOff className="w-3 h-3" />
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -90,7 +119,7 @@ export function Card({
           <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-auto">{children}</div>
+        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">{children}</div>
       )}
     </div>
   );

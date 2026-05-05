@@ -1,6 +1,8 @@
 import { create } from "zustand";
-import type { User } from "@supabase/supabase-js";
-import type { Household, Entity, Account, Cashflow, Loan, Benefit, Period, CardLayoutEntry } from "@/types/schema";
+import type { AppUser } from "@/types/appUser";
+import type {
+  Household, Entity, Account, Cashflow, Loan, Benefit, Period, CardLayoutEntry, Transaction,
+} from "@/types/schema";
 import { clearFileStorageSession } from "@/adapter/fileJson";
 
 export type TabId = "overview" | "planning" | "data" | "expenses" | "retirement";
@@ -17,12 +19,12 @@ function readDataStorageMode(): DataStorageMode {
   } catch {
     /* ignore */
   }
-  return "supabase";
+  return "file";
 }
 
 interface AppState {
-  user: User | null;
-  setUser: (u: User | null) => void;
+  user: AppUser | null;
+  setUser: (u: AppUser | null) => void;
 
   household: Household | null;
   setHousehold: (h: Household | null) => void;
@@ -32,6 +34,9 @@ interface AppState {
 
   accounts: Account[];
   setAccounts: (a: Account[]) => void;
+
+  transactions: Transaction[];
+  setTransactions: (t: Transaction[]) => void;
 
   cashflows: Cashflow[];
   setCashflows: (c: Cashflow[]) => void;
@@ -58,6 +63,8 @@ interface AppState {
   setRefreshFn: (fn: () => Promise<void>) => void;
   refresh: () => Promise<void>;
 
+  clearFinanceData: () => void;
+
   dataStorageMode: DataStorageMode;
   setDataStorageMode: (m: DataStorageMode) => void;
 
@@ -77,6 +84,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   accounts: [],
   setAccounts: (accounts) => set({ accounts }),
+
+  transactions: [],
+  setTransactions: (transactions: Transaction[]) => set({ transactions }),
 
   cashflows: [],
   setCashflows: (cashflows) => set({ cashflows }),
@@ -106,6 +116,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     const fn = get()._refresh;
     if (fn) await fn();
   },
+
+  clearFinanceData: () =>
+    set({
+      household: null,
+      entities: [],
+      accounts: [],
+      transactions: [],
+      cashflows: [],
+      loans: [],
+      benefits: [],
+      periods: [],
+      cardLayouts: {},
+      loading: true,
+    }),
 
   dataStorageMode: readDataStorageMode(),
   setDataStorageMode: (dataStorageMode) => {

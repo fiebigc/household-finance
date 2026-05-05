@@ -1,0 +1,57 @@
+{
+  "meta": {
+    "country": "SE",
+    "city": "stockholm",
+    "year": 2026,
+    "source": "Swedish Tax Agency (Skatteverket) — illustrative; always verify against official tables",
+    "notes": "Kommunalskatt Stockholm kommun ~30.24% (kommun 17.74% + landsting 12.50%). Statlig inkomstskatt applies above the 'skiktgräns'. Jobbskatteavdrag and grundavdrag simplify to an effective withholding curve."
+  },
+  "kommunalskattPct": 30.24,
+  "statligSkattThresholds": [
+    {
+      "label": "No statlig skatt",
+      "annualIncomeUpTo": 625800,
+      "statligSkattPct": 0
+    },
+    {
+      "label": "Statlig inkomstskatt 20%",
+      "annualIncomeAbove": 625800,
+      "statligSkattPct": 20
+    }
+  ],
+  "grundavdrag": {
+    "notes": "Simplified: grundavdrag reduces taxable income. Actual computation varies by income bracket. Below is a piecewise approximation for illustration.",
+    "brackets": [
+      { "annualIncomeUpTo": 46200, "deduction": 46200 },
+      { "annualIncomeUpTo": 166700, "deductionFormula": "46200 + (income - 46200) * 0.346 subtracted from 46200 → effectively shrinks", "fixedDeduction": 40500 },
+      { "annualIncomeUpTo": 405600, "fixedDeduction": 16800 },
+      { "annualIncomeAbove": 405600, "fixedDeduction": 16800 }
+    ]
+  },
+  "jobbskatteavdrag": {
+    "notes": "Approximate job tax deduction for earned income (employment/self-employment). Complex formula simplified as a lookup.",
+    "brackets": [
+      { "monthlyGrossUpTo": 0, "monthlyDeduction": 0 },
+      { "monthlyGrossUpTo": 10000, "approxEffectiveRate": 0.08 },
+      { "monthlyGrossUpTo": 30000, "approxEffectiveRate": 0.24 },
+      { "monthlyGrossUpTo": 50000, "approxEffectiveRate": 0.30 },
+      { "monthlyGrossAbove": 50000, "approxEffectiveRate": 0.34 }
+    ]
+  },
+  "effectiveWithholdingTable": {
+    "notes": "Simplified monthly gross → approximate effective tax rate (total withholding including kommunalskatt, statlig skatt minus jobbskatteavdrag & grundavdrag). For projection use only.",
+    "brackets": [
+      { "monthlyGrossFrom": 0,     "monthlyGrossTo": 2000,   "effectiveRate": 0.00 },
+      { "monthlyGrossFrom": 2000,  "monthlyGrossTo": 10000,  "effectiveRate": 0.08 },
+      { "monthlyGrossFrom": 10000, "monthlyGrossTo": 20000,  "effectiveRate": 0.22 },
+      { "monthlyGrossFrom": 20000, "monthlyGrossTo": 35000,  "effectiveRate": 0.28 },
+      { "monthlyGrossFrom": 35000, "monthlyGrossTo": 52000,  "effectiveRate": 0.32 },
+      { "monthlyGrossFrom": 52000, "monthlyGrossTo": 80000,  "effectiveRate": 0.37 },
+      { "monthlyGrossFrom": 80000, "monthlyGrossTo": null,   "effectiveRate": 0.52 }
+    ]
+  },
+  "benefitWithholdingRate": {
+    "notes": "Parental leave pay / sickness benefit / unemployment benefit: taxed as income but without arbetsgivaravgifter, jobbskatteavdrag is lower. Approximate flat withholding.",
+    "rate": 0.30
+  }
+}

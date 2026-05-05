@@ -1,17 +1,40 @@
 node_modules
 dist
 test-results/
+coverage/
+tests/
+e2e/
+**/__tests__/
+
+# Repo-local-only (keep out of public GitHub)
+docs/
+design/
+scripts/
+supabase/
 
 # Secrets & local env
 .env
 .env.local
+.env.*.local
+.env.development.local
+.env.production.local
+!.env.example
+.env.webkit
 
 .deploy-keys
+
+# Build / tooling artefacts
+*.tsbuildinfo
+
+# OCR bundles (large binaries; regenerate if needed)
+*.traineddata
 
 # OS / local
 .DS_Store
 backup/
+
+# Installers produced by packaging/macos/make-installer-pkg.sh
+dist-installer/
 .cursor/
 
-# Supabase CLI (linked project metadata)
-supabase/.temp/
+# Supabase CLI (linked project metadata) — redundant if whole supabase/ is ignored locally

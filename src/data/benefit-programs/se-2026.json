@@ -1,0 +1,53 @@
+{
+  "year": 2026,
+  "currency": "SEK",
+  "base_amounts": {
+    "prisbasbelopp_pbb": 59200,
+    "forhojt_prisbasbelopp": 60500,
+    "inkomstbasbelopp_ibb": 83400
+  },
+  "benefits": {
+    "sjukpenning": {
+      "name": "Sickness Benefit",
+      "description": "Compensation for lost income due to illness.",
+      "calculation_factor": 0.8,
+      "sgi_adjustment_factor": 0.97,
+      "income_ceiling_pbb_multiple": 10,
+      "max_annual_sgi": 592000,
+      "max_daily_payout": 1259,
+      "qualifying_deduction_pct": 0.2,
+      "logic": "((Min(Annual_Income, Max_Annual_SGI) * sgi_adjustment_factor) * calculation_factor) / 365"
+    },
+    "foraldrapenning": {
+      "name": "Parental Benefit",
+      "sgi_level": {
+        "days": 390,
+        "calculation_factor": 0.8,
+        "sgi_adjustment_factor": 0.97,
+        "income_ceiling_pbb_multiple": 10,
+        "max_annual_sgi": 592000,
+        "max_daily_payout": 1259
+      },
+      "grundniva": {
+        "description": "Basic level for those with low/no SGI",
+        "daily_amount": 250
+      },
+      "lagstaniva": {
+        "days": 90,
+        "daily_amount": 180
+      }
+    },
+    "vab": {
+      "name": "Care of Child (VAB)",
+      "calculation_factor": 0.8,
+      "sgi_adjustment_factor": 0.97,
+      "income_ceiling_pbb_multiple": 7.5,
+      "max_annual_sgi": 444000,
+      "logic": "((Min(Annual_Income, Max_Annual_SGI) * sgi_adjustment_factor) * calculation_factor) / 365"
+    }
+  },
+  "pension_contributions": {
+    "general_pension_ceiling_ibb_multiple": 7.5,
+    "max_pensionable_income": 625500
+  }
+}

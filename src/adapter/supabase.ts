@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import type { BackendAdapter } from "./index";
 import type {
   Household, Entity, Account, Period, PeriodDayOverride,
@@ -14,17 +14,17 @@ function throwIfError<T>(result: { data: T | null; error: unknown }): T {
 export const supabaseAdapter: BackendAdapter = {
   /* ── Household ── */
   async getHousehold(id) {
-    const r = await supabase.from("households").select("*").eq("id", id).maybeSingle();
+    const r = await getSupabase().from("households").select("*").eq("id", id).maybeSingle();
     return r.data as Household | null;
   },
   async getHouseholdForUser(userId) {
-    const r = await supabase
+    const r = await getSupabase()
       .from("household_members")
       .select("household_id")
       .eq("user_id", userId)
       .maybeSingle();
     if (!r.data) return null;
-    const hh = await supabase
+    const hh = await getSupabase()
       .from("households")
       .select("*")
       .eq("id", r.data.household_id)
@@ -33,24 +33,24 @@ export const supabaseAdapter: BackendAdapter = {
   },
   async upsertHousehold(h) {
     return throwIfError(
-      await supabase.from("households").upsert(h).select().single()
+      await getSupabase().from("households").upsert(h).select().single()
     );
   },
 
   /* ── Entities ── */
   async listEntities(householdId) {
     return throwIfError(
-      await supabase.from("entities").select("*").eq("household_id", householdId)
+      await getSupabase().from("entities").select("*").eq("household_id", householdId)
     );
   },
   async upsertEntity(e) {
     return throwIfError(
-      await supabase.from("entities").upsert(e).select().single()
+      await getSupabase().from("entities").upsert(e).select().single()
     );
   },
   async archiveEntity(id) {
     throwIfError(
-      await supabase.from("entities").update({ archived_at: new Date().toISOString() }).eq("id", id)
+      await getSupabase().from("entities").update({ archived_at: new Date().toISOString() }).eq("id", id)
     );
   },
 
@@ -60,17 +60,17 @@ export const supabaseAdapter: BackendAdapter = {
     const eids = entities.map(e => e.id);
     if (eids.length === 0) return [];
     return throwIfError(
-      await supabase.from("accounts").select("*").in("entity_id", eids)
+      await getSupabase().from("accounts").select("*").in("entity_id", eids)
     );
   },
   async upsertAccount(a) {
     return throwIfError(
-      await supabase.from("accounts").upsert(a).select().single()
+      await getSupabase().from("accounts").upsert(a).select().single()
     );
   },
   async archiveAccount(id) {
     throwIfError(
-      await supabase.from("accounts").update({ archived_at: new Date().toISOString() }).eq("id", id)
+      await getSupabase().from("accounts").update({ archived_at: new Date().toISOString() }).eq("id", id)
     );
   },
 
@@ -80,34 +80,34 @@ export const supabaseAdapter: BackendAdapter = {
     const eids = entities.map(e => e.id);
     if (eids.length === 0) return [];
     return throwIfError(
-      await supabase.from("periods").select("*").in("entity_id", eids)
+      await getSupabase().from("periods").select("*").in("entity_id", eids)
     );
   },
   async upsertPeriod(p) {
     return throwIfError(
-      await supabase.from("periods").upsert(p).select().single()
+      await getSupabase().from("periods").upsert(p).select().single()
     );
   },
   async archivePeriod(id) {
     throwIfError(
-      await supabase.from("periods").update({ archived_at: new Date().toISOString() }).eq("id", id)
+      await getSupabase().from("periods").update({ archived_at: new Date().toISOString() }).eq("id", id)
     );
   },
 
   /* ── Day overrides ── */
   async listDayOverrides(periodId) {
     return throwIfError(
-      await supabase.from("period_day_overrides").select("*").eq("period_id", periodId)
+      await getSupabase().from("period_day_overrides").select("*").eq("period_id", periodId)
     );
   },
   async upsertDayOverride(o) {
     return throwIfError(
-      await supabase.from("period_day_overrides").upsert(o).select().single()
+      await getSupabase().from("period_day_overrides").upsert(o).select().single()
     );
   },
   async deleteDayOverride(id) {
     throwIfError(
-      await supabase.from("period_day_overrides").delete().eq("id", id)
+      await getSupabase().from("period_day_overrides").delete().eq("id", id)
     );
   },
 
@@ -117,17 +117,17 @@ export const supabaseAdapter: BackendAdapter = {
     const eids = entities.map(e => e.id);
     if (eids.length === 0) return [];
     return throwIfError(
-      await supabase.from("cashflows").select("*").in("entity_id", eids)
+      await getSupabase().from("cashflows").select("*").in("entity_id", eids)
     );
   },
   async upsertCashflow(c) {
     return throwIfError(
-      await supabase.from("cashflows").upsert(c).select().single()
+      await getSupabase().from("cashflows").upsert(c).select().single()
     );
   },
   async archiveCashflow(id) {
     throwIfError(
-      await supabase.from("cashflows").update({ archived_at: new Date().toISOString() }).eq("id", id)
+      await getSupabase().from("cashflows").update({ archived_at: new Date().toISOString() }).eq("id", id)
     );
   },
 
@@ -137,12 +137,12 @@ export const supabaseAdapter: BackendAdapter = {
     const aids = accounts.map(a => a.id);
     if (aids.length === 0) return [];
     return throwIfError(
-      await supabase.from("loans").select("*").in("account_id", aids)
+      await getSupabase().from("loans").select("*").in("account_id", aids)
     );
   },
   async upsertLoan(l) {
     return throwIfError(
-      await supabase.from("loans").upsert(l).select().single()
+      await getSupabase().from("loans").upsert(l).select().single()
     );
   },
 
@@ -152,23 +152,23 @@ export const supabaseAdapter: BackendAdapter = {
     const eids = entities.map(e => e.id);
     if (eids.length === 0) return [];
     return throwIfError(
-      await supabase.from("benefits").select("*").in("entity_id", eids)
+      await getSupabase().from("benefits").select("*").in("entity_id", eids)
     );
   },
   async upsertBenefit(b) {
     return throwIfError(
-      await supabase.from("benefits").upsert(b).select().single()
+      await getSupabase().from("benefits").upsert(b).select().single()
     );
   },
   async archiveBenefit(id) {
     throwIfError(
-      await supabase.from("benefits").update({ archived_at: new Date().toISOString() }).eq("id", id)
+      await getSupabase().from("benefits").update({ archived_at: new Date().toISOString() }).eq("id", id)
     );
   },
 
   /* ── Transactions ── */
   async listTransactions(accountId, opts) {
-    let q = supabase
+    let q = getSupabase()
       .from("transactions")
       .select("*")
       .eq("account_id", accountId)
@@ -177,15 +177,23 @@ export const supabaseAdapter: BackendAdapter = {
     if (opts?.offset) q = q.range(opts.offset, opts.offset + (opts.limit ?? 50) - 1);
     return throwIfError(await q);
   },
+  async listTransactionsForHousehold(householdId) {
+    const accounts = await this.listAccounts(householdId);
+    const aids = accounts.map((a) => a.id);
+    if (aids.length === 0) return [];
+    return throwIfError(
+      await getSupabase().from("transactions").select("*").in("account_id", aids).order("date", { ascending: false })
+    );
+  },
   async insertTransactions(txs) {
-    const r = await supabase.from("transactions").insert(txs);
+    const r = await getSupabase().from("transactions").insert(txs);
     if (r.error) throw r.error;
     return txs.length;
   },
 
   /* ── Tax profiles ── */
   async getTaxProfile(entityId, year) {
-    const r = await supabase
+    const r = await getSupabase()
       .from("tax_profiles")
       .select("*")
       .eq("entity_id", entityId)
@@ -195,30 +203,30 @@ export const supabaseAdapter: BackendAdapter = {
   },
   async upsertTaxProfile(t) {
     return throwIfError(
-      await supabase.from("tax_profiles").upsert(t).select().single()
+      await getSupabase().from("tax_profiles").upsert(t).select().single()
     );
   },
 
   /* ── Scenarios ── */
   async listScenarios(householdId) {
     return throwIfError(
-      await supabase.from("projection_scenarios").select("*").eq("household_id", householdId)
+      await getSupabase().from("projection_scenarios").select("*").eq("household_id", householdId)
     );
   },
   async upsertScenario(s) {
     return throwIfError(
-      await supabase.from("projection_scenarios").upsert(s).select().single()
+      await getSupabase().from("projection_scenarios").upsert(s).select().single()
     );
   },
   async deleteScenario(id) {
     throwIfError(
-      await supabase.from("projection_scenarios").delete().eq("id", id)
+      await getSupabase().from("projection_scenarios").delete().eq("id", id)
     );
   },
 
   /* ── Card layout ── */
   async getCardLayout(userId, tab) {
-    const r = await supabase
+    const r = await getSupabase()
       .from("user_card_layouts")
       .select("*")
       .eq("user_id", userId)
@@ -228,7 +236,7 @@ export const supabaseAdapter: BackendAdapter = {
   },
   async saveCardLayout(layout) {
     throwIfError(
-      await supabase.from("user_card_layouts").upsert(layout)
+      await getSupabase().from("user_card_layouts").upsert(layout)
     );
   },
 };

@@ -35,6 +35,8 @@ export interface Household {
   name: string;
   currency: string;
   country: string;
+  /** Residence locality — used with country for illustrative withholding defaults in projections. */
+  city: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -64,6 +66,8 @@ export interface Account {
   bank_name: string | null;
   csv_parser_config_id: string | null;
   is_active: boolean;
+  /** Shared/joint accounts: `{ shared: true, co_entity_ids: [...] }` (see accountShared.ts). */
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
   archived_at: string | null;
@@ -99,6 +103,10 @@ export interface Cashflow {
   id: string;
   entity_id: string;
   account_id: string | null;
+  /** Household account money leaves (omit or null when counterparty is outside the household — e.g. employer, merchant). */
+  from_account_id: string | null;
+  /** Household account money enters (omit when from outside — e.g. salary into checking). */
+  to_account_id: string | null;
   direction: CashflowDirection;
   category: CashflowCategory;
   name: string;
@@ -110,6 +118,15 @@ export interface Cashflow {
   is_gross: boolean;
   tax_rate_override: number | null;
   notes: string | null;
+  /**
+   * For salary/freelance: optional employment window — affects projected income listing only (not archived).
+   * SGI / föräldrapenning estimates still read these rows via salaryCashflowMonthlyGrossEquivalent.
+   */
+  employment_active_from: string | null;
+  /** ISO date inclusive; projections exclude months strictly after this month. */
+  employment_active_until: string | null;
+  /** Optional JSON flags (e.g. internal_hide_from_flow for income or expense — see cashflowIncomeVisibility). */
+  metadata: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
   archived_at: string | null;
