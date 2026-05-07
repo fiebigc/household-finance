@@ -2,6 +2,22 @@ import { create } from "zustand";
 
 const LS_KEY = "fin:card-values-v1";
 
+/** File-backed vault debounced save when dashboard card prefs change. */
+let preferencesPersistNotifier: (() => void) | null = null;
+
+export function registerPreferencesPersistNotifier(cb: () => void): void {
+  preferencesPersistNotifier = cb;
+}
+
+function emitPreferencesPersistNeeded(): void {
+  preferencesPersistNotifier?.();
+}
+
+/** Locale etc.: triggers vault JSON debounced save for local file storage. */
+export function notifyPreferencesPersistNeeded(): void {
+  emitPreferencesPersistNeeded();
+}
+
 export interface ParentalLeaveCardRow {
   available: number;
   used: number;
@@ -83,6 +99,7 @@ function persist(byHousehold: Record<string, CardValuesForHousehold>) {
   } catch {
     /* ignore */
   }
+  emitPreferencesPersistNeeded();
 }
 
 function mergeParentalRow(r: Partial<ParentalLeaveCardRow> | undefined): ParentalLeaveCardRow {
@@ -218,4 +235,20 @@ export function patchHouseholdCardValues(householdId: string, patch: Partial<Car
         : base.retirement,
     });
   });
+}
+
+/** Restore card dialog numeric prefs from vault JSON (no vault persist ping — load path). */
+export function hydrateCardValuesFromVaultSnapshot(raw: Record<string, unknown>): void {
+  const byHousehold: Record<string, CardValuesForHousehold> = {};
+  for (const [id, v] of Object.entries(raw)) {
+    if (typeof v === "object" && v !== null && !Array.isArray(v)) {
+      byHousehold[id] = mergeDefaults(v as Partial<CardValuesForHousehold>);
+    }
+  }
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(LS_KEY, JSON.stringify(byHousehold));
+  } catch {
+    /* ignore */
+  }
+  useCardValuesStore.setState({ byHousehold });
 }

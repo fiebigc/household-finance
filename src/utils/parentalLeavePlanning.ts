@@ -1,5 +1,12 @@
 import type { Entity } from "@/types/schema";
 import type { ParentalLeaveCardRow } from "@/stores/cardValuesStore";
+import {
+  applyParentalLeaveChildAgeRule,
+  type ParentalLeaveChildAgeEntitlement,
+} from "./parentalLeaveChildAgeRule";
+
+export { applyParentalLeaveChildAgeRule, getParentalLeaveLapseAgeYears } from "./parentalLeaveChildAgeRule";
+export type { ParentalLeaveChildAgeEntitlement } from "./parentalLeaveChildAgeRule";
 
 /** Shape written by scripts/import-parental-leave-csv.mjs */
 export type ParentalLeaveSnapshot = {
@@ -33,6 +40,8 @@ export type ParentalLeavePlanningDisplay = ParentalLeaveCardRow & {
   /** FK: days left per adult (shown in card details when source === snapshot) */
   adultRemaining?: Record<string, number>;
   snapshotImportedAt?: string;
+  /** Set when finalizeParentalLeavePlanningRow applies the child-age lapse rule. */
+  childAgeEntitlement?: ParentalLeaveChildAgeEntitlement;
 };
 
 export function mergeParentalLeavePlanningRow(
@@ -76,4 +85,15 @@ export function mergeParentalLeavePlanningRow(
     adultRemaining,
     snapshotImportedAt: typeof snap.imported_at === "string" ? snap.imported_at : undefined,
   };
+}
+
+export function finalizeParentalLeavePlanningRow(
+  child: Entity,
+  manual: ParentalLeaveCardRow,
+  adults: Entity[],
+  householdCountry: string | undefined,
+  asOf: Date = new Date(),
+): ParentalLeavePlanningDisplay {
+  const merged = mergeParentalLeavePlanningRow(child, manual, adults);
+  return applyParentalLeaveChildAgeRule(merged, child, householdCountry, asOf);
 }

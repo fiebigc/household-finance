@@ -96,6 +96,21 @@
   .account-settings-modal-scroll::-webkit-scrollbar-corner {
     background: transparent;
   }
+
+  /* Keep chart surfaces above nearby card content layers. */
+  .card-content-layer svg {
+    position: relative;
+    z-index: 20;
+    overflow: hidden;
+  }
+  /* Sankey links/nodes extend past strict viewBox; allow overflow on Recharts surface only. */
+  .card-content-layer svg.recharts-surface {
+    overflow: visible;
+  }
+  .card-content-layer .recharts-wrapper {
+    position: relative;
+    z-index: 20;
+  }
 }
 
 @layer utilities {

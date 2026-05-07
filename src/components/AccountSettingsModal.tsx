@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from "react";
-import { X, FolderOpen, Download, Lock, Upload } from "lucide-react";
+import { useEffect, useState, useRef, type ReactNode } from "react";
+import { X, FolderOpen, Download, Lock, Upload, ChevronDown } from "lucide-react";
 import { supabase, getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useAppStore } from "@/stores/appStore";
 import { useBackend } from "@/hooks/useBackend";
@@ -31,12 +31,13 @@ import { syncLocalHouseholdToSupabase } from "@/utils/syncLocalHouseholdToCloud"
 import { setAppLocale, type AppLocale } from "@/i18n/i18n";
 import { useTranslation } from "react-i18next";
 import { IS_WEBKIT_STANDALONE } from "@/constants/buildTarget";
-import { BuyMeCoffeeButton } from "@/components/BuyMeCoffeeButton";
+import { BuyMeCoffeeLink } from "@/components/BuyMeCoffeeButton";
 import { pickAndReadHouseholdBackupJson } from "@/lib/readBackupJsonFile";
 
 const normalizeAppLocale = (lang: string): AppLocale => {
   if (lang.startsWith("fi")) return "fi";
   if (lang.startsWith("de")) return "de";
+  if (lang.startsWith("sv")) return "sv";
   return "en";
 };
 
@@ -48,6 +49,53 @@ const COUNTRY_OPTIONS = [
   { value: "DE", label: "Germany" },
   { value: "OTHER", label: "Other" },
 ];
+
+function SettingsCategoryCard({
+  id,
+  title,
+  titleTooltip,
+  openMobileId,
+  setOpenMobileId,
+  children,
+}: {
+  id: string;
+  title: string;
+  titleTooltip: string;
+  openMobileId: string | null;
+  setOpenMobileId: (next: string | null) => void;
+  children: ReactNode;
+}) {
+  const open = openMobileId === id;
+  return (
+    <section className="rounded-bento-inner border border-border/55 bg-muted/10 overflow-hidden">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left sm:hidden"
+        onClick={() => setOpenMobileId(open ? null : id)}
+        aria-expanded={open}
+      >
+        <h3
+          className="text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-help"
+          title={titleTooltip}
+        >
+          {title}
+        </h3>
+        <ChevronDown
+          className={cn("w-4 h-4 shrink-0 text-muted-foreground transition-transform duration-200", open && "rotate-180")}
+        />
+      </button>
+      <div className="hidden sm:block px-3 pt-3 pb-0 border-b border-border/35">
+        <h3
+          className="text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-help pb-2"
+          title={titleTooltip}
+        >
+          {title}
+        </h3>
+      </div>
+      <div className={cn("px-3 pb-3 pt-2 space-y-2", open ? "block" : "hidden sm:block")}>{children}</div>
+    </section>
+  );
+}
 
 type Props = {
   open: boolean;
@@ -93,6 +141,7 @@ export function AccountSettingsModal({ open, onClose }: Props) {
   const [restoreBackupPw, setRestoreBackupPw] = useState("");
   const [restoreBusy, setRestoreBusy] = useState(false);
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
+  const [mobileSectionId, setMobileSectionId] = useState<string | null>(null);
 
   const prevOpenRef = useRef(false);
 
@@ -121,6 +170,7 @@ export function AccountSettingsModal({ open, onClose }: Props) {
     setVaultPwCurrent("");
     setVaultPwNew("");
     setVaultPwNew2("");
+    setMobileSectionId(null);
   }, [open, entities, user, household, dataStorageMode]);
 
   useEffect(() => {
@@ -436,16 +486,19 @@ export function AccountSettingsModal({ open, onClose }: Props) {
         aria-modal="true"
         aria-labelledby="account-settings-title"
         className={cn(
-          "relative z-10 flex w-full max-w-md max-h-[90vh] flex-col overflow-hidden rounded-bento shadow-bento",
+          "relative z-10 flex w-full max-w-md sm:max-w-lg max-h-[90vh] flex-col overflow-hidden rounded-bento shadow-bento",
           "border border-border/50 bg-card"
         )}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-5 pb-3">
           <div>
-            <h2 id="account-settings-title" className="text-base font-semibold">
+            <h2
+              id="account-settings-title"
+              className="text-base font-semibold cursor-help"
+              title={t("settings.accountTitle_tooltip")}
+            >
               {t("settings.accountTitle")}
             </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{t("settings.accountSubtitle")}</p>
           </div>
           <button
             type="button"
@@ -463,29 +516,27 @@ export function AccountSettingsModal({ open, onClose }: Props) {
             "px-5 pb-2 pr-3"
           )}
         >
-        <div className="space-y-4 pr-1">
-          <section className="space-y-2">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {t("settings.signInHeading")}
-            </h3>
+        <div className="space-y-3 pr-1">
+          <SettingsCategoryCard
+            id="sign-in"
+            title={t("settings.signInHeading")}
+            titleTooltip={t("settings.tooltip_sign_in")}
+            openMobileId={mobileSectionId}
+            setOpenMobileId={setMobileSectionId}
+          >
             <div className="rounded-bento-inner bg-muted/30 px-3 py-2 text-sm">
               <p className="text-muted-foreground text-xs mb-0.5">{t("settings.emailLabel")}</p>
               <p className="font-medium truncate">{user?.email ?? "—"}</p>
             </div>
-            {dataStorageMode === "supabase" ? (
-              <p className="text-[11px] text-muted-foreground">{t("settings.cloudPwNote")}</p>
-            ) : (
-              <p className="text-[11px] text-muted-foreground">
-                {IS_WEBKIT_STANDALONE ? t("settings.localPwNote_desktop") : t("settings.localPwNote_web")}
-              </p>
-            )}
-          </section>
+          </SettingsCategoryCard>
 
-          <section className="space-y-2 border-t border-border/50 pt-4">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {t("settings.language_heading")}
-            </h3>
-            <p className="text-[11px] text-muted-foreground">{t("settings.language_hint")}</p>
+          <SettingsCategoryCard
+            id="language"
+            title={t("settings.language_heading")}
+            titleTooltip={t("settings.tooltip_language")}
+            openMobileId={mobileSectionId}
+            setOpenMobileId={setMobileSectionId}
+          >
             <select
               value={normalizeAppLocale(i18n.language)}
               onChange={(ev) => setAppLocale(ev.target.value as AppLocale)}
@@ -494,24 +545,17 @@ export function AccountSettingsModal({ open, onClose }: Props) {
               <option value="en">{t("settings.lang_en")}</option>
               <option value="fi">{t("settings.lang_fi")}</option>
               <option value="de">{t("settings.lang_de")}</option>
+              <option value="sv">{t("settings.lang_sv")}</option>
             </select>
-          </section>
+          </SettingsCategoryCard>
 
-          <section className="space-y-2 border-t border-border/50 pt-4">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {t("settings.about_heading")}
-            </h3>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">{t("settings.about_blurb")}</p>
-            <p className="text-[11px] text-muted-foreground">
-              {t("settings.app_version_label", { version: import.meta.env.VITE_APP_VERSION ?? "—" })}
-            </p>
-            <BuyMeCoffeeButton className="[&_a]:inline-flex" />
-          </section>
-
-          <section className="space-y-2">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {t("settings.yourProfile")}
-            </h3>
+          <SettingsCategoryCard
+            id="profile"
+            title={t("settings.yourProfile")}
+            titleTooltip={t("settings.tooltip_profile")}
+            openMobileId={mobileSectionId}
+            setOpenMobileId={setMobileSectionId}
+          >
             {adults.length === 0 ? (
               <p className="text-xs text-muted-foreground">{t("settings.no_adults_hint")}</p>
             ) : (
@@ -550,18 +594,23 @@ export function AccountSettingsModal({ open, onClose }: Props) {
                 />
               </>
             )}
-          </section>
+          </SettingsCategoryCard>
 
-          <section className="space-y-2">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Household</h3>
-            <label className="block text-xs text-muted-foreground">Household name</label>
+          <SettingsCategoryCard
+            id="household"
+            title={t("settings.householdHeading")}
+            titleTooltip={t("settings.tooltip_household")}
+            openMobileId={mobileSectionId}
+            setOpenMobileId={setMobileSectionId}
+          >
+            <label className="block text-xs text-muted-foreground">{t("settings.household_name")}</label>
             <input
               type="text"
               value={householdName}
               onChange={(ev) => setHouseholdName(ev.target.value)}
               className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
-            <label className="block text-xs text-muted-foreground">Country</label>
+            <label className="block text-xs text-muted-foreground">{t("settings.country")}</label>
             <select
               value={householdCountry}
               onChange={(ev) => setHouseholdCountry(ev.target.value)}
@@ -573,7 +622,7 @@ export function AccountSettingsModal({ open, onClose }: Props) {
                 </option>
               ))}
             </select>
-            <label className="block text-xs text-muted-foreground">City or locality</label>
+            <label className="block text-xs text-muted-foreground">{t("settings.city")}</label>
             <input
               type="text"
               value={householdCity}
@@ -581,67 +630,36 @@ export function AccountSettingsModal({ open, onClose }: Props) {
               placeholder="e.g. Stockholm"
               className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Together with country, this chooses illustrative tax-withholding defaults for gross income in projections
-              when you have not set a tax profile for the person. It is not used for legal tax filing.
-            </p>
             {household && (
-              <p className="text-[11px] text-muted-foreground">
-                Currency: {household.currency}
-              </p>
+              <p className="text-[11px] text-muted-foreground">{t("settings.currencyNote", { currency: household.currency })}</p>
             )}
-          </section>
+          </SettingsCategoryCard>
 
           {user && (household || dataStorageMode === "file" || dataStorageMode === "demo") && (
-            <section className="space-y-2 border-t border-border/50 pt-4">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Household JSON backup
-              </h3>
+            <SettingsCategoryCard
+              id="backup"
+              title={t("settings.cat_backup")}
+              titleTooltip={t("settings.tooltip_backup", { file: t("fs.vault_file") })}
+              openMobileId={mobileSectionId}
+              setOpenMobileId={setMobileSectionId}
+            >
               {household ? (
-                <>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Downloads the same data the app loads from your current storage (
-                    {dataStorageMode === "file"
-                      ? IS_WEBKIT_STANDALONE
-                        ? "local encrypted JSON folder on this device"
-                        : "local encrypted JSON folder"
-                      : dataStorageMode === "demo"
-                        ? t("settings.demo_backup_source_label")
-                        : "cloud storage"}
-                    ). Use for CLI imports or your
-                    own backups — plain JSON, treat as sensitive.
-                  </p>
-                  <button
-                    type="button"
-                    disabled={plainExportBusy || !user}
-                    onClick={() => void handleDownloadPlaintextBackup()}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-border bg-background text-card-foreground hover:bg-muted/40 disabled:opacity-50"
-                  >
-                    <Download className="w-4 h-4 shrink-0" />
-                    {plainExportBusy ? "Preparing…" : "Download snapshot (plaintext JSON)"}
-                  </button>
-                </>
+                <button
+                  type="button"
+                  disabled={plainExportBusy || !user}
+                  onClick={() => void handleDownloadPlaintextBackup()}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-border bg-background text-card-foreground hover:bg-muted/40 disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4 shrink-0" />
+                  {plainExportBusy ? t("settings.backup_preparing") : t("settings.backup_download_btn")}
+                </button>
               ) : (
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  No household loaded yet. You can still restore from a plaintext or encrypted backup below if you use
-                  local file storage.
-                </p>
+                <p className="text-xs text-muted-foreground">{t("settings.backup_no_household_hint")}</p>
               )}
 
               {dataStorageMode === "file" && (
                 <div className="pt-2 space-y-2 border-t border-border/40 mt-2">
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Pick a backup file (same format as the download, or a plain copy of your data). The app writes it
-                    to <code className="text-[10px] bg-muted/50 px-1 rounded">{t("fs.vault_file")}</code> in your{" "}
-                    <span className="font-medium text-card-foreground">linked folder</span> — not wherever the backup
-                    file lives (e.g. a <code className="text-[10px] bg-muted/50 px-1 rounded">backup</code>{" "}
-                    subfolder).
-                  </p>
-                  <label className="block text-[10px] text-muted-foreground">
-                    Vault password (needed if the backup file is encrypted; or to save when the live vault file is
-                    encrypted but this session has no key; optional if the live file is plain-text and you skip
-                    encryption)
-                  </label>
+                  <label className="block text-[10px] text-muted-foreground">{t("settings.restore_pw_label")}</label>
                   <input
                     type="password"
                     autoComplete="new-password"
@@ -656,7 +674,7 @@ export function AccountSettingsModal({ open, onClose }: Props) {
                     className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-border bg-background text-card-foreground hover:bg-muted/40 disabled:opacity-50"
                   >
                     <Upload className="w-4 h-4 shrink-0" />
-                    {restoreBusy ? "Restoring…" : "Restore from backup file…"}
+                    {restoreBusy ? t("settings.restore_restoring") : t("settings.restore_backup_btn")}
                   </button>
                 </div>
               )}
@@ -665,17 +683,18 @@ export function AccountSettingsModal({ open, onClose }: Props) {
                   {restoreNotice}
                 </p>
               )}
-            </section>
+            </SettingsCategoryCard>
           )}
 
           {dataStorageMode === "file" && isSupabaseConfigured() && !IS_WEBKIT_STANDALONE && (
-            <section className="space-y-2 border-t border-border/50 pt-4">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sync to cloud</h3>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Upload this household to cloud storage using your cloud email and password. After a successful sync, this
-                session uses cloud storage. Your local JSON file is not deleted (unless you overwrite it).
-              </p>
-              <label className="block text-xs text-muted-foreground">Cloud account email</label>
+            <SettingsCategoryCard
+              id="sync"
+              title={t("settings.cat_sync")}
+              titleTooltip={t("settings.tooltip_sync")}
+              openMobileId={mobileSectionId}
+              setOpenMobileId={setMobileSectionId}
+            >
+              <label className="block text-xs text-muted-foreground">{t("settings.sync_email")}</label>
               <input
                 type="email"
                 autoComplete="email"
@@ -683,7 +702,7 @@ export function AccountSettingsModal({ open, onClose }: Props) {
                 onChange={(ev) => setSyncEmail(ev.target.value)}
                 className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
-              <label className="block text-xs text-muted-foreground">Cloud password</label>
+              <label className="block text-xs text-muted-foreground">{t("settings.sync_password")}</label>
               <input
                 type="password"
                 autoComplete="current-password"
@@ -697,163 +716,190 @@ export function AccountSettingsModal({ open, onClose }: Props) {
                 onClick={() => void handleSyncToCloud()}
                 className="w-full px-3 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
               >
-                {syncBusy ? "Syncing…" : "Sign in & sync to cloud"}
+                {syncBusy ? t("settings.sync_btn_busy") : t("settings.sync_btn")}
               </button>
-            </section>
+            </SettingsCategoryCard>
           )}
 
-          <section className="space-y-2 border-t border-border/50 pt-4">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Data storage</h3>
+          <SettingsCategoryCard
+            id="storage"
+            title={t("settings.cat_storage")}
+            titleTooltip={t("settings.tooltip_storage", { file: t("fs.vault_file") })}
+            openMobileId={mobileSectionId}
+            setOpenMobileId={setMobileSectionId}
+          >
             {dataStorageMode === "demo" ? (
-              <div className="space-y-2">
-                <p className="text-[11px] leading-relaxed rounded-bento-inner border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-amber-950 dark:text-amber-50">
-                  {t("settings.demo_mode_storage_note")}
-                </p>
-                <p className="text-[11px] text-muted-foreground">{t("settings.demo_mode_storage_hint")}</p>
-              </div>
+              <p
+                className="text-[11px] leading-relaxed rounded-bento-inner border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-amber-950 dark:text-amber-50 cursor-help"
+                title={t("settings.tooltip_demo_storage")}
+              >
+                {t("settings.demo_mode_storage_note")}
+              </p>
             ) : (
               <>
-            <p className="text-[11px] text-muted-foreground">
-              {IS_WEBKIT_STANDALONE
-                ? "Household data is kept in an encrypted JSON file in a folder you choose."
-                : "Household data can live in cloud storage or in an encrypted JSON file in a folder you choose. Sign-in picks cloud (email) or local (vault password and folder)."}
-            </p>
-            <div className="flex flex-col gap-2">
-              {!IS_WEBKIT_STANDALONE && (
-                <label
-                  className={cn(
-                    "flex items-start gap-2.5 rounded-bento-inner border px-3 py-2.5 cursor-pointer transition-colors",
-                    dataStorageMode === "supabase"
-                      ? "border-primary/40 bg-primary/5"
-                      : "border-border hover:bg-muted/30",
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="data-storage"
-                    className="mt-0.5"
-                    checked={dataStorageMode === "supabase"}
-                    disabled={storageBusy || !isSupabaseConfigured()}
-                    onChange={() => void handleSupabaseMode()}
-                  />
-                  <span className="text-sm">
-                    <span className="font-medium">Cloud storage</span>
-                    <span className="block text-xs text-muted-foreground mt-0.5">
-                      Synced backend for signing in across devices (when configured).
-                    </span>
-                  </span>
-                </label>
-              )}
-
-              <div
-                className={cn(
-                  "rounded-bento-inner border px-3 py-2.5 transition-colors",
-                  dataStorageMode === "file" ? "border-primary/40 bg-primary/5" : "border-border"
-                )}
-              >
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="data-storage"
-                    className="mt-0.5"
-                    checked={IS_WEBKIT_STANDALONE || dataStorageMode === "file"}
-                    disabled={storageBusy || IS_WEBKIT_STANDALONE}
-                    onChange={() => {
-                      if (IS_WEBKIT_STANDALONE) return;
-                      if (dataStorageMode !== "file") void pickFileFolder();
-                    }}
-                  />
-                  <span className="text-sm flex-1 min-w-0">
-                    <span className="font-medium">JSON file in a folder</span>
-                    <span className="block text-xs text-muted-foreground mt-0.5">
-                      All data is read and written to{" "}
-                      <code className="text-[10px] bg-muted/50 px-1 rounded">{t("fs.vault_file")}</code> in the folder you
-                      pick. The folder choice is remembered in this browser until you forget it.
-                    </span>
-                  </span>
-                </label>
-                {dataStorageMode === "file" && (
-                  <div className="mt-3 pl-7 space-y-2">
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      Live data is encrypted in{" "}
-                      <code className="text-[10px] bg-muted/50 px-1 rounded">{t("fs.vault_file")}</code>.
-                      Use <span className="font-medium text-card-foreground">Household JSON backup</span> above for a
-                      readable export.
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <FolderOpen className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">
-                        Folder: <span className="font-medium text-card-foreground">{fileStorageFolderName ?? "—"}</span>
+                <div className="flex flex-col gap-2">
+                  {!IS_WEBKIT_STANDALONE && (
+                    <label
+                      className={cn(
+                        "flex items-start gap-2.5 rounded-bento-inner border px-3 py-2.5 cursor-pointer transition-colors",
+                        dataStorageMode === "supabase"
+                          ? "border-primary/40 bg-primary/5"
+                          : "border-border hover:bg-muted/30",
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="data-storage"
+                        className="mt-0.5"
+                        checked={dataStorageMode === "supabase"}
+                        disabled={storageBusy || !isSupabaseConfigured()}
+                        onChange={() => void handleSupabaseMode()}
+                      />
+                      <span className="text-sm font-medium cursor-help" title={t("settings.storage_cloud_title")}>
+                        {t("settings.storage_cloud_label")}
                       </span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        disabled={storageBusy || !canPickVaultFolder()}
-                        onClick={() => void pickFileFolder()}
-                        className="px-2.5 py-1.5 text-xs rounded-lg bg-muted text-card-foreground hover:bg-muted/80 disabled:opacity-50"
-                      >
-                        Choose or change folder…
-                      </button>
-                      <button
-                        type="button"
-                        disabled={storageBusy}
-                        onClick={() => void handleForgetFileFolder()}
-                        className="px-2.5 py-1.5 text-xs rounded-lg border border-border text-muted-foreground hover:bg-muted/30"
-                      >
-                        {IS_WEBKIT_STANDALONE ? "Forget linked folder…" : "Forget folder & use cloud"}
-                      </button>
-                    </div>
+                    </label>
+                  )}
 
-                    <div className="pt-3 border-t border-border/40 space-y-2">
-                      <h4 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        <Lock className="w-3 h-3" />
-                        File encryption password
-                      </h4>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        For encrypted vault files only (not plain JSON). Requires your current vault password; use a backup
-                        first if unsure.
-                      </p>
-                      <label className="block text-[10px] text-muted-foreground">Current vault password</label>
+                  <div
+                    className={cn(
+                      "rounded-bento-inner border px-3 py-2.5 transition-colors",
+                      dataStorageMode === "file" ? "border-primary/40 bg-primary/5" : "border-border",
+                    )}
+                  >
+                    <label className="flex items-start gap-2.5 cursor-pointer">
                       <input
-                        type="password"
-                        autoComplete="current-password"
-                        value={vaultPwCurrent}
-                        onChange={(ev) => setVaultPwCurrent(ev.target.value)}
-                        className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        type="radio"
+                        name="data-storage"
+                        className="mt-0.5"
+                        checked={IS_WEBKIT_STANDALONE || dataStorageMode === "file"}
+                        disabled={storageBusy || IS_WEBKIT_STANDALONE}
+                        onChange={() => {
+                          if (IS_WEBKIT_STANDALONE) return;
+                          if (dataStorageMode !== "file") void pickFileFolder();
+                        }}
                       />
-                      <label className="block text-[10px] text-muted-foreground">New password</label>
-                      <input
-                        type="password"
-                        autoComplete="new-password"
-                        value={vaultPwNew}
-                        onChange={(ev) => setVaultPwNew(ev.target.value)}
-                        className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary/30"
-                      />
-                      <label className="block text-[10px] text-muted-foreground">Confirm new password</label>
-                      <input
-                        type="password"
-                        autoComplete="new-password"
-                        value={vaultPwNew2}
-                        onChange={(ev) => setVaultPwNew2(ev.target.value)}
-                        className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary/30"
-                      />
-                      <button
-                        type="button"
-                        disabled={vaultPwBusy || storageBusy}
-                        onClick={() => void handleChangeVaultEncryptionPassword()}
-                        className="w-full px-3 py-2 text-xs rounded-lg bg-muted text-card-foreground hover:bg-muted/80 disabled:opacity-50"
+                      <span
+                        className="text-sm font-medium flex-1 min-w-0 cursor-help"
+                        title={t("settings.storage_file_title", { file: t("fs.vault_file") })}
                       >
-                        {vaultPwBusy ? "Updating…" : "Update encryption password"}
-                      </button>
-                    </div>
+                        {t("settings.storage_file_label")}
+                      </span>
+                    </label>
+                    {dataStorageMode === "file" && (
+                      <div className="mt-3 pl-7 space-y-2">
+                        <p className="text-[11px] text-muted-foreground">{t("settings.storage_live_encrypted")}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">
+                            {t("settings.folder_label_short")}:{" "}
+                            <span className="font-medium text-card-foreground">{fileStorageFolderName ?? "—"}</span>
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={storageBusy || !canPickVaultFolder()}
+                            onClick={() => void pickFileFolder()}
+                            className="px-2.5 py-1.5 text-xs rounded-lg bg-muted text-card-foreground hover:bg-muted/80 disabled:opacity-50"
+                          >
+                            {t("settings.pick_folder_btn")}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={storageBusy}
+                            onClick={() => void handleForgetFileFolder()}
+                            className="px-2.5 py-1.5 text-xs rounded-lg border border-border text-muted-foreground hover:bg-muted/30"
+                          >
+                            {IS_WEBKIT_STANDALONE
+                              ? t("settings.forget_folder_desktop_btn")
+                              : t("settings.forget_folder_cloud_btn")}
+                          </button>
+                        </div>
+
+                        <div className="pt-3 border-t border-border/40 space-y-2">
+                          <h4
+                            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-help"
+                            title={t("settings.tooltip_encryption")}
+                          >
+                            <Lock className="w-3 h-3" />
+                            {t("settings.encryption_heading")}
+                          </h4>
+                          <label className="block text-[10px] text-muted-foreground">{t("settings.encryption_current")}</label>
+                          <input
+                            type="password"
+                            autoComplete="current-password"
+                            value={vaultPwCurrent}
+                            onChange={(ev) => setVaultPwCurrent(ev.target.value)}
+                            className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          />
+                          <label className="block text-[10px] text-muted-foreground">{t("settings.encryption_new")}</label>
+                          <input
+                            type="password"
+                            autoComplete="new-password"
+                            value={vaultPwNew}
+                            onChange={(ev) => setVaultPwNew(ev.target.value)}
+                            className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          />
+                          <label className="block text-[10px] text-muted-foreground">{t("settings.encryption_confirm")}</label>
+                          <input
+                            type="password"
+                            autoComplete="new-password"
+                            value={vaultPwNew2}
+                            onChange={(ev) => setVaultPwNew2(ev.target.value)}
+                            className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          />
+                          <button
+                            type="button"
+                            disabled={vaultPwBusy || storageBusy}
+                            onClick={() => void handleChangeVaultEncryptionPassword()}
+                            className="w-full px-3 py-2 text-xs rounded-lg bg-muted text-card-foreground hover:bg-muted/80 disabled:opacity-50"
+                          >
+                            {vaultPwBusy ? t("settings.encryption_updating") : t("settings.encryption_update")}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
               </>
             )}
-          </section>
+          </SettingsCategoryCard>
+
+          <SettingsCategoryCard
+            id="notifications"
+            title={t("settings.cat_notifications")}
+            titleTooltip={t("settings.tooltip_notifications")}
+            openMobileId={mobileSectionId}
+            setOpenMobileId={setMobileSectionId}
+          >
+            <p className="text-xs text-muted-foreground">{t("settings.placeholder_soon")}</p>
+          </SettingsCategoryCard>
+
+          <SettingsCategoryCard
+            id="privacy"
+            title={t("settings.cat_privacy")}
+            titleTooltip={t("settings.tooltip_privacy")}
+            openMobileId={mobileSectionId}
+            setOpenMobileId={setMobileSectionId}
+          >
+            <p className="text-xs text-muted-foreground">{t("settings.placeholder_soon")}</p>
+          </SettingsCategoryCard>
+
+          <SettingsCategoryCard
+            id="about"
+            title={t("settings.about_heading")}
+            titleTooltip={t("settings.tooltip_about")}
+            openMobileId={mobileSectionId}
+            setOpenMobileId={setMobileSectionId}
+          >
+            <div className="flex flex-col gap-2">
+              <p className="text-[11px] text-muted-foreground">
+                {t("settings.app_version_label", { version: import.meta.env.VITE_APP_VERSION ?? "—" })}
+              </p>
+              <BuyMeCoffeeLink />
+            </div>
+          </SettingsCategoryCard>
 
           {syncNotice && (
             <p className="text-xs text-emerald-600 dark:text-emerald-400" role="status">

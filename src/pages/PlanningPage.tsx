@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { BentoGrid, type BentoCardDefinition } from "@/components/BentoGrid";
 import { Card } from "@/components/ui/BentoCard";
 import { useAppStore } from "@/stores/appStore";
@@ -8,9 +8,13 @@ import type { ParentalLeaveCardRow } from "@/stores/cardValuesStore";
 import { useProjection } from "@/hooks/useProjection";
 import { CardNumericFieldsDialog, type CardNumericFieldDef } from "@/components/CardNumericFieldsDialog";
 import type { Entity, Period, PeriodType, WeeklyPattern } from "@/types/schema";
-import { GaugeCard } from "@/components/GaugeCard";
+import { GaugeCard, GAUGE_ARC_D, SemicircleGaugeFrame } from "@/components/GaugeCard";
 import { UnemploymentBenefitsCard } from "@/components/UnemploymentBenefitsCard";
-import { mergeParentalLeavePlanningRow, type ParentalLeavePlanningDisplay } from "@/utils/parentalLeavePlanning";
+import {
+  finalizeParentalLeavePlanningRow,
+  mergeParentalLeavePlanningRow,
+  type ParentalLeavePlanningDisplay,
+} from "@/utils/parentalLeavePlanning";
 import { resolveEntityAnnualSgiForBenefits, swedishSgiBenefitLevelFieldHint } from "@/utils/swedenSgi";
 import { getParentalLeaveBenefitLevelLabel } from "@/utils/parentalLeaveBenefitLevel";
 import { estimatedForaldrapenningDailySek } from "@/utils/swedenInsuranceBenefits";
@@ -66,6 +70,20 @@ const periodDotColors: Record<string, string> = {
   unpaid_leave: "bg-yellow-500",
   school: "bg-teal-500",
   preschool: "bg-emerald-500",
+};
+
+/** Calendar lane stripes: slightly larger visual weight than dots; /alpha for transparency. */
+const periodStripeLaneColors: Record<string, string> = {
+  employed: "bg-blue-500/80",
+  self_employed: "bg-indigo-500/80",
+  parental_leave: "bg-pink-500/80",
+  unemployed: "bg-orange-500/80",
+  daycare: "bg-green-500/80",
+  home: "bg-gray-400/75",
+  sick_leave: "bg-red-500/80",
+  unpaid_leave: "bg-yellow-500/80",
+  school: "bg-teal-500/80",
+  preschool: "bg-emerald-500/80",
 };
 
 const WEEKDAY_KEYS: (keyof WeeklyPattern)[] = [
@@ -142,6 +160,53 @@ function sortPeriodsForCalendarDayCell(a: Period, b: Period, entityList: Entity[
   return a.id.localeCompare(b.id);
 }
 
+type CalendarDayCellModel = {
+  day: Date;
+  dayStr: string;
+  kind: "empty" | "off" | "multi" | "single";
+  title?: string;
+  /** Overlapping periods this calendar day (active or off per weekly pattern). */
+  snaps: { period: Period; activeWeekday: boolean }[];
+  activeOnWeekday: Period[];
+  single?: Period;
+  /** Per-period horizontal run within a grid week (Mo–Su row), for range-style stripes. */
+  periodRunCaps?: Record<string, { before: boolean; after: boolean }>;
+};
+
+/** One horizontal stripe lane — connects to neighbours like shadcn Calendar range cells. */
+function CalendarPeriodStripeLane({
+  period: p,
+  caps,
+}: {
+  period: Period;
+  caps: { before: boolean; after: boolean };
+}) {
+  const color = periodStripeLaneColors[p.type] ?? "bg-muted/75";
+  const bridged = caps.before || caps.after;
+  return (
+    <div className="relative h-2.5 w-full shrink-0 overflow-visible" aria-hidden>
+      {bridged ? (
+        <div
+          className={cn(
+            "absolute top-1/2 z-0 h-2.5 -translate-y-1/2 rounded-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]",
+            color,
+            caps.before && caps.after && "left-0 right-0",
+            caps.before && !caps.after && "left-0 right-1/2",
+            !caps.before && caps.after && "left-1/2 right-0",
+          )}
+        />
+      ) : (
+        <div
+          className={cn(
+            "absolute inset-x-1.5 top-1/2 z-0 h-2.5 -translate-y-1/2 rounded-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]",
+            color,
+          )}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Calendar Card ──────────────────────────────────────────────────────────────
 
 function CalendarCardContent() {
@@ -183,6 +248,88 @@ function CalendarCardContent() {
     const to = p.date_to ? new Date(p.date_to) : new Date("2099-12-31");
     return from <= monthEnd && to >= monthStart;
   });
+
+  /** Stable rows for “All” view so weekend cells keep the same stack as weekdays. */
+  const laneEntityIds = useMemo(() => {
+    if (selectedEntity !== "all") return [];
+    return [...entities]
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }))
+      .map(e => e.id);
+  }, [entities, selectedEntity]);
+
+  const useAllEntityLanes = selectedEntity === "all" && laneEntityIds.length > 0;
+
+  const calendarCells = useMemo(() => {
+    const n = days.length;
+    const cells: CalendarDayCellModel[] = days.map(day => {
+      const dayStr = format(day, "yyyy-MM-dd");
+      const dow = getDay(day);
+      const dayOverlap = activePeriods
+        .filter(p => {
+          const to0 = p.date_to ?? "2099-12-31";
+          return dayStr >= p.date_from && dayStr <= to0;
+        })
+        .sort((a, b) => sortPeriodsForCalendarDayCell(a, b, entities));
+
+      const snaps = dayOverlap.map(p => ({
+        period: p,
+        activeWeekday: periodEffectiveOnCalendarDay(p, dow),
+      }));
+      const activeOnWeekday = snaps.filter(s => s.activeWeekday).map(s => s.period);
+      const offWeekdayOnly = snaps.length > 0 && activeOnWeekday.length === 0;
+
+      const titleLines =
+        snaps.length > 0
+          ? snaps.map(s => {
+              const name = entities.find(e => e.id === s.period.entity_id)?.name ?? "?";
+              const pct = s.period.pct_fte != null ? ` (${s.period.pct_fte}%)` : "";
+              const wd = !s.activeWeekday && s.period.weekly_pattern ? " — off weekday" : "";
+              return `${name}: ${s.period.type.replace(/_/g, " ")}${pct}${wd}`;
+            })
+          : undefined;
+      const title = titleLines?.join("\n");
+
+      if (activeOnWeekday.length > 1) {
+        return { day, dayStr, kind: "multi" as const, title, snaps, activeOnWeekday };
+      }
+      if (activeOnWeekday.length === 1) {
+        return {
+          day,
+          dayStr,
+          kind: "single" as const,
+          title,
+          snaps,
+          activeOnWeekday,
+          single: activeOnWeekday[0],
+        };
+      }
+      if (offWeekdayOnly) {
+        return { day, dayStr, kind: "off" as const, title, snaps, activeOnWeekday: [] };
+      }
+      return { day, dayStr, kind: "empty" as const, snaps: [], activeOnWeekday: [] };
+    });
+
+    for (let i = 0; i < n; i++) {
+      const c = cells[i];
+      if (c.activeOnWeekday.length === 0) continue;
+      const pos = startDow + i;
+      const caps: Record<string, { before: boolean; after: boolean }> = {};
+      for (const p of c.activeOnWeekday) {
+        let before = false;
+        let after = false;
+        if (i > 0 && pos % 7 !== 0) {
+          before = cells[i - 1].activeOnWeekday.some(q => q.id === p.id);
+        }
+        if (i < n - 1 && pos % 7 !== 6) {
+          after = cells[i + 1].activeOnWeekday.some(q => q.id === p.id);
+        }
+        caps[p.id] = { before, after };
+      }
+      c.periodRunCaps = caps;
+    }
+
+    return cells;
+  }, [days, startDow, activePeriods, entities]);
 
   const handleAddPeriod = async () => {
     if (!newEntityId || !newFrom) return;
@@ -331,123 +478,144 @@ function CalendarCardContent() {
             {Array.from({ length: startDow }).map((_, i) => (
               <div key={`pad-${i}`} />
             ))}
-            {days.map(day => {
-              const dayStr = format(day, "yyyy-MM-dd");
-              const dow = getDay(day);
-              const dayOverlap = activePeriods
-                .filter(p => {
-                  const to = p.date_to ?? "2099-12-31";
-                  return dayStr >= p.date_from && dayStr <= to;
-                })
-                .sort((a, b) => sortPeriodsForCalendarDayCell(a, b, entities));
+            {calendarCells.map(cell => {
+              const { day, dayStr, kind, title, snaps, activeOnWeekday, single, periodRunCaps } = cell;
 
-              const snaps = dayOverlap.map(p => ({
-                period: p,
-                activeWeekday: periodEffectiveOnCalendarDay(p, dow),
-              }));
-              const activeOnWeekday = snaps.filter(s => s.activeWeekday).map(s => s.period);
-              const offWeekdayOnly = snaps.length > 0 && activeOnWeekday.length === 0;
-
-              const titleLines =
-                snaps.length > 0
-                  ? snaps.map(s => {
-                      const name = entities.find(e => e.id === s.period.entity_id)?.name ?? "?";
-                      const pct = s.period.pct_fte != null ? ` (${s.period.pct_fte}%)` : "";
-                      const wd = !s.activeWeekday && s.period.weekly_pattern ? " — off weekday" : "";
-                      return `${name}: ${s.period.type.replace(/_/g, " ")}${pct}${wd}`;
-                    })
-                  : undefined;
-              const title = titleLines?.join("\n");
-
-              const single = activeOnWeekday.length === 1 ? activeOnWeekday[0] : null;
-              const multi = activeOnWeekday.length > 1;
-
-              const dotRow =
-                activeOnWeekday.length > 0 ? (
-                  <div className="pointer-events-none flex flex-wrap items-center justify-center gap-px pb-1">
-                    {activeOnWeekday.map(p => (
-                      <span key={p.id} className={cn("h-1.5 w-1.5 rounded-full", periodDotColors[p.type] ?? "bg-muted")} />
-                    ))}
-                  </div>
-                ) : null;
-
-              if (multi) {
+              if (useAllEntityLanes && kind !== "empty") {
                 return (
                   <div
                     key={dayStr}
                     title={title}
-                    className={cn(
-                      "relative flex aspect-square flex-col overflow-hidden rounded-lg bg-muted/10 text-xs transition-colors",
-                      isToday(day) && "ring-2 ring-primary",
-                    )}
+                    className="relative flex aspect-square flex-col items-stretch justify-center gap-1 overflow-visible px-0 py-0.5"
                   >
-                    <div className="flex min-h-[46%] flex-1 shrink-0 divide-x divide-border/30">
+                    <div className="flex min-h-[15px] w-full flex-col justify-center gap-1 px-0">
+                      {laneEntityIds.map(eid => {
+                        const forEntity = snaps.filter(s => s.period.entity_id === eid);
+                        const snap =
+                          forEntity.find(s => s.activeWeekday) ??
+                          forEntity[0];
+                        if (!snap) {
+                          return <div key={eid} className="h-2.5 w-full shrink-0" aria-hidden />;
+                        }
+                        if (!snap.activeWeekday) {
+                          return (
+                            <div key={eid} className="relative h-2.5 w-full shrink-0 overflow-visible" aria-hidden>
+                              <div className="absolute inset-x-1.5 top-1/2 h-2 -translate-y-1/2 rounded-full bg-muted/40 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" />
+                            </div>
+                          );
+                        }
+                        const p = snap.period;
+                        return (
+                          <CalendarPeriodStripeLane
+                            key={eid}
+                            period={p}
+                            caps={periodRunCaps?.[p.id] ?? { before: false, after: false }}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div
+                      className={cn(
+                        "mx-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs tabular-nums",
+                        kind === "off" && "text-muted-foreground/85",
+                        isToday(day) && "font-bold ring-2 ring-primary ring-offset-2 ring-offset-background",
+                      )}
+                    >
+                      {day.getDate()}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (kind === "multi") {
+                return (
+                  <div
+                    key={dayStr}
+                    title={title}
+                    className="relative flex aspect-square flex-col items-stretch justify-center gap-1 overflow-visible px-0 py-0.5"
+                  >
+                    <div className="flex min-h-[15px] w-full flex-col justify-center gap-1 px-0">
                       {activeOnWeekday.map(p => (
-                        <div
+                        <CalendarPeriodStripeLane
                           key={p.id}
-                          className={cn("min-w-0 flex-1", periodTypeColors[p.type] ?? "bg-muted")}
+                          period={p}
+                          caps={periodRunCaps?.[p.id] ?? { before: false, after: false }}
                         />
                       ))}
                     </div>
                     <div
                       className={cn(
-                        "flex flex-1 items-center justify-center",
-                        isToday(day) && "font-bold",
+                        "mx-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs tabular-nums",
+                        isToday(day) && "font-bold ring-2 ring-primary ring-offset-2 ring-offset-background",
                       )}
                     >
                       {day.getDate()}
                     </div>
-                    {dotRow}
                   </div>
                 );
               }
 
-              if (single) {
+              if (kind === "single" && single) {
+                const caps = periodRunCaps?.[single.id] ?? { before: false, after: false };
                 return (
                   <div
                     key={dayStr}
                     title={title ?? undefined}
-                    className={cn(
-                      "relative flex aspect-square items-center justify-center overflow-hidden rounded-lg text-xs transition-colors",
-                      isToday(day) && "ring-2 ring-primary font-bold",
-                      periodTypeColors[single.type] ?? "bg-muted",
-                    )}
+                    className="relative flex aspect-square items-center justify-center overflow-visible"
                   >
-                    {day.getDate()}
-                    <span
+                    {(caps.before || caps.after) && (
+                      <div
+                        className={cn(
+                          "absolute top-1/2 z-0 h-2.5 -translate-y-1/2 rounded-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]",
+                          periodStripeLaneColors[single.type] ?? "bg-muted/75",
+                          caps.before && caps.after && "left-0 right-0",
+                          caps.before && !caps.after && "left-0 right-1/2",
+                          !caps.before && caps.after && "left-1/2 right-0",
+                        )}
+                      />
+                    )}
+                    <div
                       className={cn(
-                        "absolute bottom-0.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full",
-                        periodDotColors[single.type] ?? "bg-muted",
+                        "relative z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-medium tabular-nums",
+                        periodTypeColors[single.type] ?? "bg-muted",
+                        isToday(day) && "ring-2 ring-primary ring-offset-2 ring-offset-background",
                       )}
-                    />
+                    >
+                      {day.getDate()}
+                    </div>
                   </div>
                 );
               }
 
-              if (offWeekdayOnly) {
+              if (kind === "off") {
                 return (
                   <div
                     key={dayStr}
                     title={title}
-                    className={cn(
-                      "relative flex aspect-square items-center justify-center rounded-lg bg-muted/20 text-xs text-muted-foreground/50 transition-colors",
-                      isToday(day) && "ring-2 ring-primary font-bold",
-                    )}
+                    className="relative flex aspect-square items-center justify-center overflow-visible"
                   >
-                    {day.getDate()}
+                    <div
+                      className={cn(
+                        "flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-muted-foreground/35 bg-muted/10 text-xs text-muted-foreground/70 tabular-nums",
+                        isToday(day) && "ring-2 ring-primary ring-offset-2 ring-offset-background font-bold text-foreground",
+                      )}
+                    >
+                      {day.getDate()}
+                    </div>
                   </div>
                 );
               }
 
               return (
-                <div
-                  key={dayStr}
-                  className={cn(
-                    "relative flex aspect-square items-center justify-center rounded-lg text-xs transition-colors hover:bg-muted/50",
-                    isToday(day) && "ring-2 ring-primary font-bold",
-                  )}
-                >
-                  {day.getDate()}
+                <div key={dayStr} className="relative flex aspect-square items-center justify-center overflow-visible">
+                  <div
+                    className={cn(
+                      "flex h-9 w-9 items-center justify-center rounded-full text-xs tabular-nums text-muted-foreground hover:bg-muted/45",
+                      isToday(day) && "font-bold text-foreground ring-2 ring-primary ring-offset-2 ring-offset-background",
+                    )}
+                  >
+                    {day.getDate()}
+                  </div>
                 </div>
               );
             })}
@@ -740,11 +908,12 @@ function maxBenefitLevelFromParentalCards(
   children: Entity[],
   parentalByChild: Record<string, ParentalLeaveCardRow>,
   adults: Entity[],
+  householdCountry: string | undefined,
 ): number {
   let max = 0;
   for (const child of children) {
     const manual = parentalByChild[child.id] ?? EMPTY_PARENTAL_MANUAL;
-    const row = mergeParentalLeavePlanningRow(child, manual, adults);
+    const row = finalizeParentalLeavePlanningRow(child, manual, adults, householdCountry);
     if (typeof row.benefitLevel === "number" && row.benefitLevel > max) {
       max = row.benefitLevel;
     }
@@ -762,8 +931,14 @@ function PlanningActivityCardContent() {
   const isSE = household?.country?.trim().toUpperCase() === "SE";
 
   const planningBenefitMax = useMemo(
-    () => maxBenefitLevelFromParentalCards(children, values.planning.parentalByChild, adults),
-    [children, values.planning.parentalByChild, adults],
+    () =>
+      maxBenefitLevelFromParentalCards(
+        children,
+        values.planning.parentalByChild,
+        adults,
+        household?.country,
+      ),
+    [children, values.planning.parentalByChild, adults, household?.country],
   );
 
   return (
@@ -859,7 +1034,6 @@ function PlanningActivityCardContent() {
 
 // ─── Parental Leave Planning (gauge) ────────────────────────────────────────────
 
-const GAUGE_ARC_D = "M 10 60 A 50 50 0 0 1 110 60";
 const ADULT_GAUGE_COLORS = [
   "hsl(217 85% 52%)",
   "hsl(328 72% 48%)",
@@ -909,23 +1083,32 @@ function normalizeGaugeSegments(segs: GaugeSegment[]): GaugeSegment[] {
   return segs.map(x => ({ ...x, fraction: x.fraction * scale }));
 }
 
-function StackedSemiCircleGauge({ segments }: { segments: GaugeSegment[] }) {
+function StackedSemiCircleGauge({ segments, center }: { segments: GaugeSegment[]; center: ReactNode }) {
   let offset = 0;
+  const strokeW = 12;
   return (
-    <div className="relative w-28 h-16">
-      <svg viewBox="0 0 120 70" className="w-full h-full">
-        <path d={GAUGE_ARC_D} fill="none" stroke="hsl(220 13% 92%)" strokeWidth="8" strokeLinecap="round" pathLength={100} />
-        {segments.map((seg, i) => {
-          if (seg.fraction <= 0) return null;
-          const dash = seg.fraction * 100;
-          const el = (
-            <path key={i} d={GAUGE_ARC_D} fill="none" stroke={seg.color} strokeWidth="8" strokeLinecap="round" pathLength={100} strokeDasharray={`${dash} ${100}`} strokeDashoffset={-offset} />
-          );
-          offset += dash;
-          return el;
-        })}
-      </svg>
-    </div>
+    <SemicircleGaugeFrame center={center}>
+      <path d={GAUGE_ARC_D} fill="none" stroke="hsl(220 13% 92%)" strokeWidth={strokeW} strokeLinecap="round" pathLength={100} />
+      {segments.map((seg, i) => {
+        if (seg.fraction <= 0) return null;
+        const dash = seg.fraction * 100;
+        const el = (
+          <path
+            key={i}
+            d={GAUGE_ARC_D}
+            fill="none"
+            stroke={seg.color}
+            strokeWidth={strokeW}
+            strokeLinecap="round"
+            pathLength={100}
+            strokeDasharray={`${dash} ${100}`}
+            strokeDashoffset={-offset}
+          />
+        );
+        offset += dash;
+        return el;
+      })}
+    </SemicircleGaugeFrame>
   );
 }
 
@@ -933,10 +1116,17 @@ type ParentalDetailColumn = { label: string; value: string; dotColor?: string };
 
 function ParentalLeaveGaugeCard({ row, adults, detailColumns }: { row: ParentalLeavePlanningDisplay; adults: Entity[]; detailColumns: ParentalDetailColumn[] }) {
   const segments = buildParentalGaugeSegments(row, adults);
+  const pctRemaining =
+    row.available > 0
+      ? Math.round((Math.max(0, row.available - row.used) / row.available) * 100)
+      : 0;
   return (
-    <div className="space-y-3">
+    <div className="relative z-10 -mt-3 space-y-3">
       <div className="flex flex-col items-center gap-2">
-        <StackedSemiCircleGauge segments={segments} />
+        <StackedSemiCircleGauge
+          segments={segments}
+          center={<span className="text-2xl font-bold tabular-nums">{pctRemaining}%</span>}
+        />
       </div>
       <div className="space-y-1">
         <div className="flex justify-between text-xs text-muted-foreground">
@@ -964,11 +1154,15 @@ function ParentalLeaveGaugeCard({ row, adults, detailColumns }: { row: ParentalL
 function ParentalLeavePlanningCard({ child, p }: { child: Entity; p: BentoRender }) {
   const { entities, household } = useAppStore();
   const { values, update } = useHouseholdCardValues();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const adults = entities.filter(e => e.type === "adult");
   const benefitLevelLabel = getParentalLeaveBenefitLevelLabel(household?.country);
   const manualRow = values.planning.parentalByChild[child.id] ?? { available: 0, used: 0, adultUsed: {}, benefitLevel: 0 };
-  const row = mergeParentalLeavePlanningRow(child, manualRow, adults);
+  const mergedRaw = mergeParentalLeavePlanningRow(child, manualRow, adults);
+  const row = finalizeParentalLeavePlanningRow(child, manualRow, adults, household?.country);
+  const age = row.childAgeEntitlement;
+  const ccode = (household?.country ?? "").trim().toUpperCase() || "—";
 
   const fields: CardNumericFieldDef[] = [
     { key: "available", label: "Available days" },
@@ -977,10 +1171,15 @@ function ParentalLeavePlanningCard({ child, p }: { child: Entity; p: BentoRender
     ...adults.map(a => ({ key: `adult_${a.id}`, label: `${a.name} — days used` })),
   ];
   const initial: Record<string, number | null> = {
-    available: row.available, used: row.used, benefitLevel: row.benefitLevel,
-    ...Object.fromEntries(adults.map(a => [`adult_${a.id}`, row.adultUsed[a.id] ?? 0])),
+    available: mergedRaw.available,
+    used: mergedRaw.used,
+    benefitLevel: mergedRaw.benefitLevel,
+    ...Object.fromEntries(adults.map(a => [`adult_${a.id}`, mergedRaw.adultUsed[a.id] ?? 0])),
   };
-  const subtitle = row.source === "snapshot" ? "Parental leave (imported)" : "Parental leave days";
+  const subtitle =
+    row.source === "snapshot"
+      ? t("cards.planning.parental_leave_sub_imported")
+      : t("cards.planning.parental_leave_sub_manual");
   const detailColumns: ParentalDetailColumn[] = adults.map((a, i) => {
     const dotColor = adultColorAt(i);
     if (row.source === "snapshot" && row.adultRemaining && a.id in row.adultRemaining) return { label: a.name, value: `${row.adultRemaining[a.id]} days remaining`, dotColor };
@@ -995,14 +1194,41 @@ function ParentalLeavePlanningCard({ child, p }: { child: Entity; p: BentoRender
     detailColumns.push({ label: benefitLevelLabel, value: formatSEK(row.benefitLevel) });
   }
 
+  const ageNote =
+    age?.lapsed != null && age.lapsed
+      ? t("cards.planning.parental_age_rule_lapsed", { age: age.lapseAgeYears, country: ccode })
+      : age?.skippedNoBirthDate
+        ? t("cards.planning.parental_age_rule_no_birth_date")
+        : null;
+
   return (
     <>
       <Card title={child.name} subtitle={subtitle} icon={<Baby className="w-4 h-4" />} onEdit={() => setOpen(true)} {...p}>
+        {ageNote ? (
+          <p className="mb-2 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2 py-1.5 text-[11px] leading-snug text-amber-950 dark:text-amber-100/95">
+            {ageNote}
+          </p>
+        ) : null}
         <ParentalLeaveGaugeCard row={row} adults={adults} detailColumns={detailColumns} />
+        {age != null && !age.lapsed && !age.skippedNoBirthDate && typeof age.completedAgeYears === "number" ? (
+          <p className="mt-2 text-center text-[10px] leading-snug text-muted-foreground">
+            {t("cards.planning.parental_age_rule_footnote", {
+              age: age.lapseAgeYears,
+              country: ccode,
+              current: age.completedAgeYears,
+            })}
+          </p>
+        ) : null}
       </Card>
       <CardNumericFieldsDialog
         open={open} onClose={() => setOpen(false)} title={`${child.name} — parental leave days`}
-        description={row.source === "snapshot" ? "Totals and per-parent remaining come from the latest Försäkringskassan CSV import on this child. Edit below to override with manual planning numbers (stored in this browser only)." : isSE ? "Track quota and usage for planning. Swedish föräldrapenning estimates use the 2026 parameter set in app data (illustrative; not an official benefit decision)." : "Track quota and usage for planning; this does not change payroll or benefits in the data model."}
+        description={
+          row.source === "snapshot"
+            ? t("cards.planning.parental_dialog_desc_snapshot")
+            : isSE
+              ? t("cards.planning.parental_dialog_desc_manual_se")
+              : t("cards.planning.parental_dialog_desc_manual_generic")
+        }
         fields={fields} initial={initial}
         onSave={(next) => {
           const adultUsed: Record<string, number> = {};

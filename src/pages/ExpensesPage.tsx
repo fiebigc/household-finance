@@ -70,6 +70,9 @@ function breakdownPieBlock(
               outerRadius={70}
               innerRadius={40}
               dataKey="value"
+              paddingAngle={2}
+              cornerRadius={8}
+              minAngle={6}
               strokeWidth={2}
               stroke="hsl(0 0% 100%)"
             >

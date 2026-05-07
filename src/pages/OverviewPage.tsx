@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, type Dispatch, type SetStateAction } from "react";
 import { BentoGrid, type BentoCardDefinition } from "@/components/BentoGrid";
 import { Card } from "@/components/ui/BentoCard";
 import { useAppStore } from "@/stores/appStore";
@@ -33,15 +33,13 @@ import { useDataSettingsBentoCards } from "@/pages/DataSettingsPage";
 import { useExpensesBentoCards } from "@/pages/ExpensesPage";
 import { useRetirementBentoCards } from "@/pages/RetirementPage";
 import { useTranslation } from "react-i18next";
+import { GAUGE_ARC_D, SemicircleGaugeFrame } from "@/components/GaugeCard";
 
 type BentoRender = Parameters<BentoCardDefinition["render"]>[0];
 
 function mirrorCardsForOverview(defs: BentoCardDefinition[]): BentoCardDefinition[] {
   return defs.map((d) => ({ ...d, defaultVisible: false }));
 }
-
-/** Forward steps aligned with balance chart (projection engine horizons). */
-const BALANCE_CHART_PROJECTION_MONTHS = 6;
 
 /**
  * Builds balance chart rows aligned with Import detail: same bank-like accounts, same data keys
@@ -52,6 +50,7 @@ function buildBalanceProjectionRows(
   drift: number,
   projection: HouseholdProjection,
   series: AccountFlowSeries[],
+  stepCount: number,
 ): Record<string, unknown>[] {
   let liquidity: Account[] = [];
   if (series.length > 0) {
@@ -85,7 +84,7 @@ function buildBalanceProjectionRows(
   let cumulativeModeledHouseholdSurplus = 0;
   const rows: Record<string, unknown>[] = [];
 
-  for (let step = 0; step < BALANCE_CHART_PROJECTION_MONTHS; step++) {
+  for (let step = 0; step < stepCount; step++) {
     if (step >= 1) cumulativeModeledHouseholdSurplus += monthlySurplus[step - 1] ?? 0;
     const driftFactor = Math.pow(1 + drift, step);
 
@@ -116,20 +115,32 @@ function barMonthFactor(i: number, count: number, spreadPct: number): number {
   return 1 + (t - 0.5) * 2 * (spreadPct / 100);
 }
 
+type OverviewHorizonMonths = 3 | 6 | 12;
+
+function useAccountOverviewHorizon(): [OverviewHorizonMonths, Dispatch<SetStateAction<OverviewHorizonMonths>>] {
+  const [months, setMonths] = useState<OverviewHorizonMonths>(() => {
+    if (typeof window === "undefined") return 6;
+    return window.matchMedia("(max-width: 639px)").matches ? 3 : 6;
+  });
+  return [months, setMonths];
+}
+
 const CHART_COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#64748b"];
 
 function AccountOverviewCardContent() {
+  const { t } = useTranslation();
   const { accounts, transactions } = useAppStore();
   const { values } = useHouseholdCardValues();
   const drift = values.overview.accountBalanceMonthlyDrift;
+  const [horizonMonths, setHorizonMonths] = useAccountOverviewHorizon();
   const [view, setView] = useState<"imports" | "projection">("imports");
 
   /** Calendar periods + cashflows → monthly surplus feeds balance steps (snapshots unchanged). */
-  const projectionForBalance = useProjection(BALANCE_CHART_PROJECTION_MONTHS);
+  const projectionForBalance = useProjection(horizonMonths);
 
   const { data: importChartData, series: chartBankSeries } = useMemo(
-    () => buildMonthlyAccountFlowChartData(accounts, transactions, { maxMonths: 24 }),
-    [accounts, transactions],
+    () => buildMonthlyAccountFlowChartData(accounts, transactions, { maxMonths: horizonMonths }),
+    [accounts, transactions, horizonMonths],
   );
 
   /** Same accounts & short labels as Import detail; fallback if no bank-like accounts yet. */
@@ -148,8 +159,8 @@ function AccountOverviewCardContent() {
 
   const projectionData = useMemo(
     () =>
-      buildBalanceProjectionRows(accounts, drift, projectionForBalance, balanceSeriesForChart),
-    [accounts, drift, projectionForBalance, balanceSeriesForChart],
+      buildBalanceProjectionRows(accounts, drift, projectionForBalance, balanceSeriesForChart, horizonMonths),
+    [accounts, drift, projectionForBalance, balanceSeriesForChart, horizonMonths],
   );
 
   const importAreaData = useMemo(() => {
@@ -187,6 +198,23 @@ function AccountOverviewCardContent() {
 
   return (
     <div className="flex flex-col gap-2 min-h-0 flex-1">
+      <div className="flex flex-wrap items-center gap-1 shrink-0" title={t("cards.overview.chart_range_heading_tooltip")}>
+        {([3, 6, 12] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setHorizonMonths(m)}
+            className={`px-2 py-1 rounded-md text-[10px] font-medium transition-colors ${
+              horizonMonths === m
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted/60 text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            {m === 12 ? t("cards.overview.chart_range_12") : t(`cards.overview.chart_range_${m}`)}
+          </button>
+        ))}
+      </div>
+
       {hasImportChart && (
         <div className="flex gap-1 shrink-0">
           <button
@@ -349,22 +377,29 @@ function HouseholdHealthCardContent() {
   const healthScore = Math.min(100, Math.max(0, Math.round(50 + (netMonthly / Math.max(1, totalIncome)) * 50)));
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="relative w-28 h-16">
-        <svg viewBox="0 0 120 70" className="w-full h-full">
-          <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="hsl(220 13% 91%)" strokeWidth="10" strokeLinecap="round" />
-          <path
-            d="M 10 60 A 50 50 0 0 1 110 60"
-            fill="none"
-            stroke={healthScore >= 60 ? "hsl(142 71% 45%)" : healthScore >= 30 ? "hsl(38 92% 50%)" : "hsl(0 84% 60%)"}
-            strokeWidth="10"
-            strokeLinecap="round"
-            strokeDasharray={`${(healthScore / 100) * 157} 157`}
-          />
-        </svg>
-      </div>
+    <div className="flex flex-col items-center justify-center gap-2">
+      <SemicircleGaugeFrame
+        center={<span className="text-2xl font-bold tabular-nums">{healthScore}%</span>}
+      >
+        <path
+          d={GAUGE_ARC_D}
+          fill="none"
+          stroke="hsl(220 13% 91%)"
+          strokeWidth={14}
+          strokeLinecap="round"
+          pathLength={100}
+        />
+        <path
+          d={GAUGE_ARC_D}
+          fill="none"
+          stroke={healthScore >= 60 ? "hsl(142 71% 45%)" : healthScore >= 30 ? "hsl(38 92% 50%)" : "hsl(0 84% 60%)"}
+          strokeWidth={14}
+          strokeLinecap="round"
+          pathLength={100}
+          strokeDasharray={`${healthScore} ${100}`}
+        />
+      </SemicircleGaugeFrame>
       <div className="text-center">
-        <span className="text-2xl font-bold tabular-nums">{healthScore}%</span>
         <p className="text-xs text-muted-foreground">
           {healthScore >= 70 ? "Healthy" : healthScore >= 40 ? "Needs attention" : "Critical"}
         </p>

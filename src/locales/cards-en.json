@@ -1,5 +1,9 @@
 {
   "overview": {
+    "chart_range_3": "3 mo",
+    "chart_range_6": "6 mo",
+    "chart_range_12": "1 yr",
+    "chart_range_heading_tooltip": "How many months this chart shows.",
     "account_overview": "Account Overview",
     "account_overview_sub_imports": "Imports detail · Balance projection blends snapshots + modeled flows (Planning)",
     "account_overview_sub_snapshots": "Balances: snapshots × drift + calendar-driven surplus",
@@ -30,6 +34,14 @@
     "income_projection_sub": "6 months forward — driven by calendar periods",
     "income_projection_tooltip": "6-month projection from periods, FTE%, and cashflows. Unemployment and parental rules follow your Swedish benefit configuration.",
     "parental_leave_suffix": "{{name}} — Parental Leave",
+    "parental_leave_sub_imported": "Parental leave (imported)",
+    "parental_leave_sub_manual": "Parental leave days",
+    "parental_age_rule_lapsed": "Card shows 0 days left: planning lapses parental leave quota after the child completes age {{age}} (household country {{country}}; illustrative). Edit still shows your saved or imported figures.",
+    "parental_age_rule_no_birth_date": "Set this child's birth date under Data & Settings to apply the country age-based lapse on this card.",
+    "parental_age_rule_footnote": "Planning lapse after age {{age}} ({{country}}); child is now {{current}}.",
+    "parental_dialog_desc_snapshot": "Totals and per-parent remaining come from the latest Försäkringskassan CSV import on this child. Edit below to override with manual planning numbers (stored in this browser only). The card applies an illustrative age-based lapse from the child's birth date and your household country.",
+    "parental_dialog_desc_manual_se": "Track quota and usage for planning. Swedish föräldrapenning estimates use the 2026 parameter set in app data (illustrative; not an official benefit decision). The card applies an illustrative age-based lapse from the child's birth date and household country.",
+    "parental_dialog_desc_manual_generic": "Track quota and usage for planning; this does not change payroll or benefits in the data model. The card applies an illustrative age-based lapse from the child's birth date and household country.",
     "unemployment_suffix": "{{name}} — Unemployment benefits",
     "holidays_suffix": "{{name}} — Holidays"
   },

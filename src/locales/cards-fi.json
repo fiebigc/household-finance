@@ -1,5 +1,9 @@
 {
   "overview": {
+    "chart_range_3": "3 kk",
+    "chart_range_6": "6 kk",
+    "chart_range_12": "1 v",
+    "chart_range_heading_tooltip": "Kuukausien määrä kaaviossa.",
     "account_overview": "Tilien yhteenveto",
     "account_overview_sub_imports": "Tuontikohta · Saldo yhdistää tilannekuvat ja mallinnetun ylijäämän (suunnitelma)",
     "account_overview_sub_snapshots": "Saldot: tilannekuvat × driifti + kalenterin ylijäämä",
@@ -30,6 +34,14 @@
     "income_projection_sub": "6 kk eteenpäin — kalenterin jaksojen mukaan",
     "income_projection_tooltip": "Projektio 6 kuukaudeksi jaksoista, FTE- ja rahavirrat. Työttömyys-/vanhempavapaalogiikat ruotsalaisten oletuksien mukaan.",
     "parental_leave_suffix": "{{name}} — Vanhempainvapaa",
+    "parental_leave_sub_imported": "Vanhempainvapaa (tuotu)",
+    "parental_leave_sub_manual": "Vanhempainvapaapäivät",
+    "parental_age_rule_lapsed": "Kortti näyttää 0 päivää: suunnittelusääntö mitätöi kiintiön, kun lapsi on täyttänyt {{age}} vuotta (maa {{country}}, havainnollista). Muokkaus näyttää edelleen tallennetut/tuodut luvut.",
+    "parental_age_rule_no_birth_date": "Lisää lapsen syntymäaika kohdassa Data ja asetukset, jotta ikäpohjainen sääntö käytetään.",
+    "parental_age_rule_footnote": "Suunnittelu: päättyy iän {{age}} jälkeen ({{country}}); lapsi nyt {{current}}.",
+    "parental_dialog_desc_snapshot": "Summat ja jäljellä olevat päivät vanhemmittain tulevat viimeisimmästä Försäkringskassan CSV -tuosta. Muokkaa alla manuaalista suunnitelmaa (vain tässä selaimessa). Kortti soveltaa havainnollista ikärajaa syntymäajan ja kotitalousmaan perusteella.",
+    "parental_dialog_desc_manual_se": "Seuraa kiintiötä suunnittelussa. Ruotsin arviot käyttävät sovelluksen 2026 parametreja (havainnollista). Kortti soveltaa havainnollista ikärajaa.",
+    "parental_dialog_desc_manual_generic": "Seuraa kiintiötä suunnittelussa; ei muuta palkka- tai etuustietoja. Kortti soveltaa havainnollista ikärajaa.",
     "unemployment_suffix": "{{name}} — Työttömyysetu",
     "holidays_suffix": "{{name}} — Lomaoikeus/lomapäivät"
   },

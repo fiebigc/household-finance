@@ -6,6 +6,7 @@ import {
   flushFileJsonPersistence,
   restoreFileStorageFromDisk,
   getBoundLocalFileSession,
+  collectVaultUserPreferencesSnapshot,
 } from "@/adapter/fileJson";
 import type { TaxProfile, UserCardLayout } from "@/types/schema";
 
@@ -98,7 +99,12 @@ export async function buildHouseholdSnapshotExportJson(opts: {
   };
 
   const session = dataStorageMode === "file" ? getBoundLocalFileSession() : null;
-  const payload = session ? { ...base, localSession: session } : base;
+  const prefs = collectVaultUserPreferencesSnapshot();
+  const payload = {
+    ...base,
+    ...(session ? { localSession: session } : {}),
+    userPreferences: prefs,
+  };
 
   return JSON.stringify(payload, null, 2);
 }

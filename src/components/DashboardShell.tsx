@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useAppStore, type TabId } from "@/stores/appStore";
 import { useFinanceData } from "@/hooks/useFinanceData";
@@ -55,85 +56,170 @@ function TabBarWithHiddenCards({
 }) {
   const { t } = useTranslation();
   const { registry } = useBentoHiddenCardsRegistry();
+  const [hiddenMenu, setHiddenMenu] = useState<{ tab: TabId; anchor: DOMRectReadOnly } | null>(null);
+  /** True if Overview was already the active tab when the pointer went down on the Overview control. */
+  const overviewWasActiveOnPointerDown = useRef(false);
+
+  const closeHiddenMenu = useCallback(() => setHiddenMenu(null), []);
+
+  useEffect(() => {
+    if (!hiddenMenu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeHiddenMenu();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hiddenMenu, closeHiddenMenu]);
+
+  useEffect(() => {
+    if (hiddenMenu && activeTab !== "overview") closeHiddenMenu();
+  }, [activeTab, hiddenMenu, closeHiddenMenu]);
+
+  useEffect(() => {
+    if (hiddenMenu && registry.hidden.length === 0) closeHiddenMenu();
+  }, [registry.hidden.length, hiddenMenu, closeHiddenMenu]);
+
+  const menuOpen =
+    hiddenMenu !== null &&
+    hiddenMenu.tab === "overview" &&
+    activeTab === "overview" &&
+    registry.hidden.length > 0;
 
   return (
-    <nav className="sticky top-[56px] z-30 flex justify-center px-4 py-2">
-      <div
+    <>
+      <nav
         className={cn(
-          "flex flex-wrap justify-center gap-0.5 rounded-full border border-border/50",
-          "bg-card/25 backdrop-blur-xl shadow-bento p-1",
-          "max-w-full",
+          "sticky top-[56px] z-30 flex justify-center px-4 py-2",
+          menuOpen && "z-[99998]",
         )}
       >
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          const hiddenCount = isActive ? registry.hidden.length : 0;
+        <div
+          className={cn(
+            "flex flex-wrap justify-center gap-0.5 rounded-full border border-border/50",
+            "bg-card/25 backdrop-blur-xl shadow-bento p-1",
+            "max-w-full",
+          )}
+        >
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            const hiddenCount = isActive ? registry.hidden.length : 0;
+            const menuOpenForTab = menuOpen && tab.id === "overview";
+            const overviewHiddenMenu =
+              tab.id === "overview" && isActive && hiddenCount > 0;
 
-          return (
-            <div key={tab.id} className="relative flex items-center group/tab-hidden">
-              <button
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-                  isActive
-                    ? "bg-card/75 text-card-foreground shadow-sm backdrop-blur-md"
-                    : "text-muted-foreground hover:text-card-foreground hover:bg-muted/25",
-                )}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="hidden sm:inline">{t(`nav.${tab.id}`)}</span>
-                {isActive && hiddenCount > 0 && (
-                  <span
-                    className="rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-semibold tabular-nums text-primary"
-                    aria-hidden
-                  >
-                    {hiddenCount}
-                  </span>
-                )}
-              </button>
-
-              {isActive && hiddenCount > 0 && (
-                <div
+            return (
+              <div key={tab.id} className="relative flex items-center">
+                <button
+                  type="button"
+                  aria-expanded={menuOpenForTab}
+                  aria-haspopup={overviewHiddenMenu ? "menu" : undefined}
+                  onPointerDown={() => {
+                    if (tab.id === "overview") {
+                      overviewWasActiveOnPointerDown.current = activeTab === "overview";
+                    }
+                  }}
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    /* Hidden-cards sheet: only when Overview was already active before this click (not when switching from another tab). */
+                    if (
+                      tab.id === "overview" &&
+                      isActive &&
+                      overviewWasActiveOnPointerDown.current &&
+                      hiddenCount > 0
+                    ) {
+                      setHiddenMenu((m) =>
+                        m?.tab === "overview" ? null : { tab: "overview", anchor: rect },
+                      );
+                      return;
+                    }
+                    closeHiddenMenu();
+                    setActiveTab(tab.id);
+                  }}
                   className={cn(
-                    "pointer-events-none absolute left-1/2 top-[calc(100%-6px)] z-50 w-max min-w-[12rem] max-w-[min(90vw,18rem)] -translate-x-1/2",
-                    "px-2 pt-3 opacity-0 transition-opacity duration-150",
-                    "group-hover/tab-hidden:pointer-events-auto group-hover/tab-hidden:opacity-100",
-                    "group-focus-within/tab-hidden:pointer-events-auto group-focus-within/tab-hidden:opacity-100",
+                    "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                    isActive
+                      ? "bg-card/75 text-card-foreground shadow-sm backdrop-blur-md"
+                      : "text-muted-foreground hover:text-card-foreground hover:bg-muted/25",
                   )}
-                  role="presentation"
                 >
-                  <div
-                    role="menu"
-                    aria-label={t("shell.hidden_cards_menu")}
-                    className="rounded-xl border border-border/80 bg-popover/95 p-2 text-left shadow-lg backdrop-blur-md"
-                  >
-                    <p className="px-2 pb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                      {hiddenCount === 1 ? t("shell.hidden_cards_one") : t("shell.hidden_cards_more", { count: hiddenCount })}
-                    </p>
-                    <ul className="flex max-h-[min(70vh,20rem)] flex-col gap-0.5 overflow-y-auto">
-                      {registry.hidden.map((h) => (
-                        <li key={h.card_id}>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="w-full rounded-lg px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-card-foreground"
-                            onClick={() => registry.restoreCard?.(h.card_id)}
-                          >
-                            {t("shell.show_card", { title: h.title })}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline">{t(`nav.${tab.id}`)}</span>
+                  {isActive && hiddenCount > 0 && (
+                    <span
+                      className="rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-semibold tabular-nums text-primary"
+                      aria-hidden
+                    >
+                      {hiddenCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </nav>
+
+      {menuOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <>
+            {/* Invisible hit target only — no dimming or full-page blur */}
+            <button
+              type="button"
+              aria-label={t("settings.close")}
+              className="fixed inset-0 z-[99990] cursor-default border-0 bg-transparent p-0"
+              onClick={closeHiddenMenu}
+            />
+            <div
+              role="menu"
+              aria-label={t("shell.hidden_cards_menu")}
+              className={cn(
+                "fixed z-[99999] w-[min(90vw,18rem)] min-w-[12rem] max-w-[18rem] rounded-xl border border-border/80",
+                "bg-popover/72 backdrop-blur-2xl backdrop-saturate-150 shadow-2xl ring-1 ring-black/5 dark:ring-white/10",
+                "p-2 text-left",
               )}
+              style={(() => {
+                const anchor = hiddenMenu.anchor;
+                const vw = typeof window !== "undefined" ? window.innerWidth : 400;
+                const panelW = Math.min(vw * 0.9, 288);
+                const cx = anchor.left + anchor.width / 2;
+                const leftPx = Math.min(Math.max(cx, panelW / 2 + 8), vw - panelW / 2 - 8);
+                return {
+                  top: anchor.bottom + 8,
+                  left: leftPx,
+                  transform: "translateX(-50%)",
+                };
+              })()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="px-2 pb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {registry.hidden.length === 1
+                  ? t("shell.hidden_cards_one")
+                  : t("shell.hidden_cards_more", { count: registry.hidden.length })}
+              </p>
+              <ul className="flex max-h-[min(70vh,20rem)] flex-col gap-0.5 overflow-y-auto">
+                {registry.hidden.map((h) => (
+                  <li key={h.card_id}>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full rounded-lg px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-card-foreground"
+                      onClick={() => {
+                        registry.restoreCard?.(h.card_id);
+                        closeHiddenMenu();
+                      }}
+                    >
+                      {t("shell.show_card", { title: h.title })}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
-          );
-        })}
-      </div>
-    </nav>
+          </>,
+          document.body,
+        )}
+    </>
   );
 }
 

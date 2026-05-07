@@ -25,6 +25,13 @@ import {
   saltB64ToBytes,
   type EncryptedHouseholdEnvelope,
 } from "@/utils/localVaultCrypto";
+import { LANG_STORAGE_KEY, setAppLocale, type AppLocale } from "@/i18n/i18n";
+import {
+  hydrateCardValuesFromVaultSnapshot,
+  registerPreferencesPersistNotifier,
+  useCardValuesStore,
+  type CardValuesForHousehold,
+} from "@/stores/cardValuesStore";
 
 const DATA_FILE = "household-finance-data.json";
 
@@ -54,8 +61,15 @@ export type LocalFileSession = {
   display_name: string | null;
 };
 
+/** Locale + dashboard card numeric prefs, stored inside local vault JSON. */
+export type VaultUserPreferencesV1 = {
+  locale?: string;
+  cardValuesByHousehold?: Record<string, CardValuesForHousehold>;
+};
+
 type SnapshotOnDisk = SnapshotV1 & {
   localSession?: LocalFileSession;
+  userPreferences?: VaultUserPreferencesV1;
 };
 
 const store = {
@@ -105,8 +119,34 @@ function normalizeHousehold(h: Household): Household {
 }
 
 function snapshotWithoutSession(data: SnapshotOnDisk): SnapshotV1 {
-  const { localSession: _ls, ...rest } = data;
+  const { localSession: _ls, userPreferences: _up, ...rest } = data;
   return rest as SnapshotV1;
+}
+
+function applyLoadedUserPreferences(raw: VaultUserPreferencesV1 | undefined): void {
+  if (!raw) return;
+  if (raw.cardValuesByHousehold && typeof raw.cardValuesByHousehold === "object") {
+    hydrateCardValuesFromVaultSnapshot(raw.cardValuesByHousehold as Record<string, unknown>);
+  }
+  if (typeof raw.locale === "string" && ["en", "fi", "de", "sv"].includes(raw.locale)) {
+    setAppLocale(raw.locale as AppLocale, { skipPreferencesPersist: true });
+  }
+}
+
+export function collectVaultUserPreferencesSnapshot(): VaultUserPreferencesV1 {
+  let locale: string | undefined;
+  try {
+    if (typeof localStorage !== "undefined") {
+      const v = localStorage.getItem(LANG_STORAGE_KEY);
+      if (v === "en" || v === "fi" || v === "de" || v === "sv") locale = v;
+    }
+  } catch {
+    /* ignore */
+  }
+  return {
+    locale,
+    cardValuesByHousehold: { ...useCardValuesStore.getState().byHousehold },
+  };
 }
 
 function ensureLocalSession(profile: { display_name: string; email: string | null }) {
@@ -164,8 +204,9 @@ function toSnapshot(): SnapshotOnDisk {
     scenarios: [...store.scenarios.values()],
     cardLayouts: [...store.cardLayouts.values()],
   };
-  if (lastLocalSession) return { ...base, localSession: lastLocalSession };
-  return base;
+  const prefs = collectVaultUserPreferencesSnapshot();
+  if (lastLocalSession) return { ...base, localSession: lastLocalSession, userPreferences: prefs };
+  return { ...base, userPreferences: prefs };
 }
 
 async function readFileFromDirectory(handle: FileSystemDirectoryHandle): Promise<string> {
@@ -367,6 +408,7 @@ async function doLoad(): Promise<void> {
       } else {
         hydrateFromSnapshot(snapshotWithoutSession(root));
         lastLocalSession = root.localSession ?? null;
+        applyLoadedUserPreferences(root.userPreferences);
       }
       cacheLoadedFromDisk = true;
       return;
@@ -378,6 +420,7 @@ async function doLoad(): Promise<void> {
     } else {
       hydrateFromSnapshot(snapshotWithoutSession(plain));
       lastLocalSession = plain.localSession ?? null;
+      applyLoadedUserPreferences(plain.userPreferences);
     }
   } catch {
     hydrateFromSnapshot(emptySnapshot());
@@ -610,6 +653,7 @@ export async function bootstrapUnlockLocalVault(
     hydrateFromSnapshot(snapshotWithoutSession(root));
     lastLocalSession = root.localSession ?? null;
     ensureLocalSession(profileFallback);
+    applyLoadedUserPreferences(root.userPreferences);
     cacheLoadedFromDisk = true;
     await flushPersist();
     return lastLocalSession!;
@@ -625,6 +669,7 @@ export async function bootstrapUnlockLocalVault(
   hydrateFromSnapshot(snapshotWithoutSession(root));
   lastLocalSession = root.localSession ?? null;
   ensureLocalSession(profileFallback);
+  applyLoadedUserPreferences(root.userPreferences);
 
   if (!password.trim()) {
     cacheLoadedFromDisk = true;
@@ -717,6 +762,7 @@ export async function restoreLocalVaultFromBackup(
   hydrateFromSnapshot(snap);
   lastLocalSession = preservedSession ?? root.localSession ?? null;
   ensureLocalSession(opts.profile);
+  applyLoadedUserPreferences(root.userPreferences);
 
   const diskEnc = await peekDiskEnvelopeEncrypted();
 
@@ -1040,3 +1086,5 @@ export const fileJsonAdapter: BackendAdapter = {
     schedulePersist();
   },
 };
+
+registerPreferencesPersistNotifier(schedulePersist);

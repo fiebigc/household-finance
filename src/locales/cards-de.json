@@ -1,5 +1,9 @@
 {
   "overview": {
+    "chart_range_3": "3 Mon.",
+    "chart_range_6": "6 Mon.",
+    "chart_range_12": "1 J",
+    "chart_range_heading_tooltip": "Anzahl der Monate im Diagramm.",
     "account_overview": "Kontenüberblick",
     "account_overview_sub_imports": "Importdetails · Saldo blendet Snapshots mit modellierten Überschüssen aus Planung",
     "account_overview_sub_snapshots": "Salden: Snapshots × Drift + kalenderabhängiger Überschuss",
@@ -30,6 +34,14 @@
     "income_projection_sub": "6 Monate voraus – aus Kalenderperioden",
     "income_projection_tooltip": "6-Monats-Projektion aus Perioden, FTE % und Cashflows. Arbeitlosigkeit/Mutterschutz folgen Schweden-/Benefit-Konfiguration.",
     "parental_leave_suffix": "{{name}} — Elternzeit",
+    "parental_leave_sub_imported": "Elternzeit (importiert)",
+    "parental_leave_sub_manual": "Elternzeit-Tage",
+    "parental_age_rule_lapsed": "Karte zeigt 0 Resttage: Planungsregel lässt das Kontingent enden, wenn das Kind das Alter {{age}} Jahre vollendet (Land {{country}}, illustrativ). Bearbeiten zeigt weiterhin gespeicherte/importierte Werte.",
+    "parental_age_rule_no_birth_date": "Geburtsdatum des Kindes unter Daten & Einstellungen eintragen, um die altersbasierte Planungsregel anzuwenden.",
+    "parental_age_rule_footnote": "Planung: Ablauf nach Alter {{age}} ({{country}}); Kind jetzt {{current}}.",
+    "parental_dialog_desc_snapshot": "Summen stammen aus dem letzten Försäkringskassan-CSV-Import für dieses Kind. Unten manuell überschreibbar (nur im Browser). Die Karte wendet eine illustrative Altersgrenze aus Geburtsdatum und Haushaltsland an.",
+    "parental_dialog_desc_manual_se": "Kontingent für die Planung. Schwedische Schätzungen nutzen App-Daten 2026 (illustrativ). Die Karte wendet eine illustrative Altersgrenze aus Geburtsdatum und Haushaltsland an.",
+    "parental_dialog_desc_manual_generic": "Kontingent für die Planung; ändert keine Stammdaten. Die Karte wendet eine illustrative Altersgrenze aus Geburtsdatum und Haushaltsland an.",
     "unemployment_suffix": "{{name}} — Arbeitslosenhilfe",
     "holidays_suffix": "{{name}} — Urlaub"
   },

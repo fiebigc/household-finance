@@ -3,7 +3,44 @@ import { useTranslation } from "react-i18next";
 import { getIsTauri } from "@/utils/tauriDetection";
 import { cn } from "@/lib/utils";
 
-const BMC_HREF = "https://buymeacoffee.com/fiebigcx";
+export const BUY_ME_COFFEE_HREF = "https://buymeacoffee.com/fiebigcx";
+
+async function openBuyMeCoffeePage(): Promise<void> {
+  try {
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    await openUrl(BUY_ME_COFFEE_HREF);
+  } catch {
+    window.open(BUY_ME_COFFEE_HREF, "_blank", "noopener,noreferrer");
+  }
+}
+
+const linkClass =
+  "inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline underline-offset-2";
+
+/** Plain text link — reliable in settings / anywhere the BMC widget script may not load. */
+export function BuyMeCoffeeLink({ className }: { className?: string }) {
+  const { t } = useTranslation();
+  const [isTauri] = useState(() => getIsTauri());
+
+  if (isTauri) {
+    return (
+      <button type="button" onClick={() => void openBuyMeCoffeePage()} className={cn(linkClass, className)}>
+        {t("settings.bmc_button_text")}
+      </button>
+    );
+  }
+
+  return (
+    <a
+      href={BUY_ME_COFFEE_HREF}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(linkClass, className)}
+    >
+      {t("settings.bmc_button_text")}
+    </a>
+  );
+}
 
 /**
  * Web: official Buy Me a Coffee widget (remote script).
@@ -14,14 +51,7 @@ export function BuyMeCoffeeButton({ className }: { className?: string }) {
   const [isTauri] = useState(() => getIsTauri());
   const hostRef = useRef<HTMLDivElement>(null);
 
-  const openBmc = useCallback(async () => {
-    try {
-      const { openUrl } = await import("@tauri-apps/plugin-opener");
-      await openUrl(BMC_HREF);
-    } catch {
-      window.open(BMC_HREF, "_blank", "noopener,noreferrer");
-    }
-  }, []);
+  const openBmc = useCallback(() => openBuyMeCoffeePage(), []);
 
   useEffect(() => {
     if (isTauri) return;

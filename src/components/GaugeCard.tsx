@@ -1,4 +1,45 @@
-const GAUGE_ARC_D = "M 10 60 A 50 50 0 0 1 110 60";
+import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
+
+/** Semicircle gauge arc — center (60,60), radius 56. */
+export const GAUGE_ARC_D = "M 4 60 A 56 56 0 0 1 116 60";
+
+/** Padding around arc coords so round stroke caps are not clipped by the SVG viewport. */
+export const GAUGE_SVG_VIEW_BOX = "-12 -12 144 90";
+
+const GAUGE_STROKE = 12;
+
+export function SemicircleGaugeFrame({
+  children,
+  center,
+  className,
+}: {
+  children: ReactNode;
+  center?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative mx-auto w-[11.5rem] h-[8.25rem] max-w-full shrink-0 overflow-visible [&_svg]:block",
+        className,
+      )}
+    >
+      <svg
+        viewBox={GAUGE_SVG_VIEW_BOX}
+        className="h-full w-full max-h-none overflow-visible"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        {children}
+      </svg>
+      {center != null ? (
+        <div className="pointer-events-none absolute left-1/2 top-[57%] z-[1] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center px-1 text-center leading-none">
+          {center}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function GaugeCard({
   available,
@@ -16,32 +57,33 @@ export function GaugeCard({
   /** Arc draws left→right; colored segment shows remaining quota on the right end. */
   const stroke =
     remainingFrac > 0.4 ? "hsl(142 71% 45%)" : remainingFrac > 0.15 ? "hsl(38 92% 50%)" : "hsl(0 84% 60%)";
+  const pctRemaining = available > 0 ? Math.round(remainingFrac * 100) : 0;
 
   return (
-    <div className="space-y-3">
+    <div className="relative z-10 -mt-3 space-y-3">
       <div className="flex flex-col items-center gap-2">
-        <div className="relative w-24 h-14">
-          <svg viewBox="0 0 120 70" className="w-full h-full">
-            <path
-              d={GAUGE_ARC_D}
-              fill="none"
-              stroke="hsl(220 13% 91%)"
-              strokeWidth="8"
-              strokeLinecap="round"
-              pathLength={100}
-            />
-            <path
-              d={GAUGE_ARC_D}
-              fill="none"
-              stroke={stroke}
-              strokeWidth="8"
-              strokeLinecap="round"
-              pathLength={100}
-              strokeDasharray={`${remainingFrac * 100} ${100}`}
-              strokeDashoffset={-usedFrac * 100}
-            />
-          </svg>
-        </div>
+        <SemicircleGaugeFrame
+          center={<span className="text-2xl font-bold tabular-nums">{pctRemaining}%</span>}
+        >
+          <path
+            d={GAUGE_ARC_D}
+            fill="none"
+            stroke="hsl(220 13% 91%)"
+            strokeWidth={GAUGE_STROKE}
+            strokeLinecap="round"
+            pathLength={100}
+          />
+          <path
+            d={GAUGE_ARC_D}
+            fill="none"
+            stroke={stroke}
+            strokeWidth={GAUGE_STROKE}
+            strokeLinecap="round"
+            pathLength={100}
+            strokeDasharray={`${remainingFrac * 100} ${100}`}
+            strokeDashoffset={-usedFrac * 100}
+          />
+        </SemicircleGaugeFrame>
       </div>
       <div className="space-y-1">
         <div className="flex justify-between text-xs text-muted-foreground">
