@@ -3,14 +3,29 @@ import { useTranslation } from "react-i18next";
 import { getIsTauri } from "@/utils/tauriDetection";
 import { cn } from "@/lib/utils";
 
-export const BUY_ME_COFFEE_HREF = "https://buymeacoffee.com/fiebigcx";
+/** Full BMC profile URL, or omit and set `VITE_BUY_ME_A_COFFEE_SLUG` only. */
+function buyMeCoffeeHref(): string | null {
+  const url = import.meta.env.VITE_BUY_ME_A_COFFEE_URL?.trim();
+  if (url) return url;
+  const slug = import.meta.env.VITE_BUY_ME_A_COFFEE_SLUG?.trim();
+  if (slug) return `https://buymeacoffee.com/${slug}`;
+  return null;
+}
 
-async function openBuyMeCoffeePage(): Promise<void> {
+function buyMeCoffeeSlug(): string | null {
+  return import.meta.env.VITE_BUY_ME_A_COFFEE_SLUG?.trim() || null;
+}
+
+export function isBuyMeCoffeeConfigured(): boolean {
+  return buyMeCoffeeHref() !== null;
+}
+
+async function openBuyMeCoffeePage(href: string): Promise<void> {
   try {
     const { openUrl } = await import("@tauri-apps/plugin-opener");
-    await openUrl(BUY_ME_COFFEE_HREF);
+    await openUrl(href);
   } catch {
-    window.open(BUY_ME_COFFEE_HREF, "_blank", "noopener,noreferrer");
+    window.open(href, "_blank", "noopener,noreferrer");
   }
 }
 
@@ -21,22 +36,20 @@ const linkClass =
 export function BuyMeCoffeeLink({ className }: { className?: string }) {
   const { t } = useTranslation();
   const [isTauri] = useState(() => getIsTauri());
+  const href = buyMeCoffeeHref();
+
+  if (!href) return null;
 
   if (isTauri) {
     return (
-      <button type="button" onClick={() => void openBuyMeCoffeePage()} className={cn(linkClass, className)}>
+      <button type="button" onClick={() => void openBuyMeCoffeePage(href)} className={cn(linkClass, className)}>
         {t("settings.bmc_button_text")}
       </button>
     );
   }
 
   return (
-    <a
-      href={BUY_ME_COFFEE_HREF}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={cn(linkClass, className)}
-    >
+    <a href={href} target="_blank" rel="noopener noreferrer" className={cn(linkClass, className)}>
       {t("settings.bmc_button_text")}
     </a>
   );
@@ -50,11 +63,15 @@ export function BuyMeCoffeeButton({ className }: { className?: string }) {
   const { t, i18n } = useTranslation();
   const [isTauri] = useState(() => getIsTauri());
   const hostRef = useRef<HTMLDivElement>(null);
+  const href = buyMeCoffeeHref();
+  const slug = buyMeCoffeeSlug();
 
-  const openBmc = useCallback(() => openBuyMeCoffeePage(), []);
+  const openBmc = useCallback(() => {
+    if (href) void openBuyMeCoffeePage(href);
+  }, [href]);
 
   useEffect(() => {
-    if (isTauri) return;
+    if (isTauri || !slug) return;
     const host = hostRef.current;
     if (!host) return;
     host.innerHTML = "";
@@ -63,7 +80,7 @@ export function BuyMeCoffeeButton({ className }: { className?: string }) {
     script.src = "https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js";
     script.async = true;
     script.dataset.name = "bmc-button";
-    script.dataset.slug = "fiebigcx";
+    script.dataset.slug = slug;
     script.dataset.color = "#000000";
     script.dataset.emoji = "☕";
     script.dataset.font = "Lato";
@@ -76,7 +93,9 @@ export function BuyMeCoffeeButton({ className }: { className?: string }) {
     return () => {
       host.innerHTML = "";
     };
-  }, [isTauri, t, i18n.language]);
+  }, [isTauri, slug, t, i18n.language]);
+
+  if (!href) return null;
 
   if (isTauri) {
     return (
@@ -95,5 +114,13 @@ export function BuyMeCoffeeButton({ className }: { className?: string }) {
     );
   }
 
-  return <div ref={hostRef} className={className} />;
+  if (slug) {
+    return <div ref={hostRef} className={className} />;
+  }
+
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className={cn(linkClass, className)}>
+      {t("settings.bmc_button_text")}
+    </a>
+  );
 }

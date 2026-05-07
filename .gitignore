@@ -9,7 +9,8 @@ e2e/
 # Repo-local-only (keep out of public GitHub)
 docs/
 design/
-scripts/
+scripts/*
+!scripts/build-demo-household-snapshot.mjs
 supabase/
 
 # Secrets & local env

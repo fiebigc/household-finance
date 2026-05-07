@@ -34,6 +34,22 @@ Commands: `npm run build`, `npm run preview`, `npm test`.
 
 See `.env.example` for supported environment variables.
 
+## Public open-source fork
+
+This app ships with **synthetic demo data** in `src/data/samples/demo-household-snapshot.json`. Regenerate it anytime with `npm run demo:data:build` (tracked script: `scripts/build-demo-household-snapshot.mjs`). **Do not commit** real vault exports or `.env` with production keys.
+
+To publish a **clean, single-commit** public repo (no older git history from a private fork—useful before opening the tree):
+
+```bash
+bash packaging/export-opensource-copy.sh ../household-finance-public
+cd ../household-finance-public
+gh repo create YOUR_ORG/household-finance --public --source=. --remote=origin --push
+```
+
+Replace `YOUR_ORG/household-finance` with your GitHub namespace and repo name. Omit `gh ... --push` if you prefer to review first, then `git push -u origin main`.
+
+Optional: set `VITE_BUY_ME_A_COFFEE_SLUG` / `VITE_BUY_ME_A_COFFEE_URL` in `.env` for a tip link in Settings → About; leave unset for a neutral OSS build.
+
 ## License
 
 MIT—see [LICENSE](./LICENSE).

@@ -3,14 +3,10 @@
 
 ## Project overview
 
-A personal household financial dashboard, planner, and modelling tool for a Swedish
-household. Two adults (Christian on parental leave / possibly self-employed, wife employed
-at 80%), two children (3-year-old, 11-month-old starting daycare Aug 15). The app covers
-income tracking, loan management, social benefits, period scheduling, CSV import from
-banks and Försäkringskassan, and long-range retirement modelling.
-
-The app is logic-based. No hardcoded entities, amounts, or household-specific values
-anywhere in the codebase. Everything is driven by the database schema.
+A privacy-first household finance dashboard and planner: accounts, loans, cashflows,
+benefits, leave scheduling, CSV import, and long-range projections. The app is logic-based:
+no hardcoded entities, amounts, or household-specific values in source—facts live in the
+user’s database or local vault and are driven by the schema.
 
 ---
 
@@ -65,4 +61,4 @@ returns MonthlyProjection[]. Lives in src/engine/projection.ts only.
 
 ## Agent workflow
 
-When a task needs CLI verification or data imports (`npm run …`, `node scripts/…`), run those commands here using repo paths and the default household snapshot under `~/Documents/Finances/` when applicable — do not only tell the user to run them.
+When a task needs CLI verification or data imports (`npm run …`, `node scripts/…`), run those commands here using repo paths and the bundled demo snapshot (`src/data/samples/demo-household-snapshot.json`) or paths the user provides — do not only tell the user to run them.

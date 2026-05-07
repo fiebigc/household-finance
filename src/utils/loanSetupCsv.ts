@@ -92,7 +92,7 @@ function splitCoOwners(raw: string): string[] {
     .filter(Boolean);
 }
 
-/** Extract holder name from Danske-style `8403038352 - Christian A Fiebig`. */
+/** Extract holder name from Danske-style `YYYYMMDD-XXXX - Given Family`. */
 export function parseKontohavareHint(raw: string): string | null {
   const s = raw.trim();
   if (!s) return null;

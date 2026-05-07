@@ -40,6 +40,9 @@ interface ImportMetaEnv {
   readonly VITE_TINK_DEMO_MODE?: string;
   /** Set in `.env.webkit` for the desktop WebKit bundle (no Supabase client). */
   readonly VITE_WEBKIT_STANDALONE?: string;
+  /** Optional Buy Me a Coffee (Settings → About). Omit both for a clean OSS build. */
+  readonly VITE_BUY_ME_A_COFFEE_SLUG?: string;
+  readonly VITE_BUY_ME_A_COFFEE_URL?: string;
   readonly VITE_APP_VERSION: string;
 }
 
