@@ -16,10 +16,6 @@ function buyMeCoffeeSlug(): string | null {
   return import.meta.env.VITE_BUY_ME_A_COFFEE_SLUG?.trim() || null;
 }
 
-export function isBuyMeCoffeeConfigured(): boolean {
-  return buyMeCoffeeHref() !== null;
-}
-
 async function openBuyMeCoffeePage(href: string): Promise<void> {
   try {
     const { openUrl } = await import("@tauri-apps/plugin-opener");
