@@ -35,6 +35,9 @@ import {
 
 const DATA_FILE = "household-finance-data.json";
 
+/** Bento tab ids — keep in sync with `TabId` in appStore. */
+const BENTO_TAB_IDS = ["overview", "planning", "data", "expenses", "retirement"] as const;
+
 /** Minimum length for a new local vault encryption password. */
 export const MIN_LOCAL_VAULT_PASSWORD_LENGTH = 8;
 
@@ -245,6 +248,31 @@ async function writeVaultDisk(json: string): Promise<void> {
   await writeFileToDirectory(dirHandle, json);
 }
 
+/**
+ * Zustand holds the live bento layout per tab; the vault serializes `store.cardLayouts`.
+ * Card-value edits only call `schedulePersist()` — merge app layouts here so every vault
+ * write includes the latest grid order/sizes/visibility for all tabs.
+ */
+async function mergeAppStoreCardLayoutsIntoFileStore(): Promise<void> {
+  const { useAppStore } = await import("@/stores/appStore");
+  const st = useAppStore.getState();
+  const uid =
+    st.user?.id ?? (st.dataStorageMode === "file" ? lastLocalSession?.user_id ?? null : null);
+  if (!uid) return;
+  const ts = now();
+  for (const tab of BENTO_TAB_IDS) {
+    const cards = st.cardLayouts[tab];
+    if (!cards?.length) continue;
+    store.cardLayouts.set(`${uid}:${tab}`, {
+      id: `${uid}:${tab}`,
+      user_id: uid,
+      tab,
+      cards,
+      updated_at: ts,
+    });
+  }
+}
+
 async function flushPersist(): Promise<void> {
   if (!hasVaultFolder()) return;
   try {
@@ -261,6 +289,7 @@ async function flushPersist(): Promise<void> {
         }
       }
     }
+    await mergeAppStoreCardLayoutsIntoFileStore();
     const snap = toSnapshot();
     const inner = JSON.stringify(snap, null, 2);
     if (localVaultCryptoKey && localVaultSaltB64) {

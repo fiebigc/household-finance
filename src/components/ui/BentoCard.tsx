@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { CardSize } from "@/types/schema";
-import { GripVertical, Minus, Plus, EyeOff, Pencil } from "lucide-react";
+import { GripVertical, EyeOff, Pencil } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 interface CardProps {
@@ -97,13 +97,27 @@ export function Card({
             {showControls && (onResize || onHide) && (
               <>
                 {onResize && sizeIdx > 0 && (
-                  <button type="button" onClick={shrink} className="p-1 rounded hover:bg-muted/80 text-muted-foreground" title="Shrink">
-                    <Minus className="w-3 h-3" strokeWidth={2.5} />
+                  <button
+                    type="button"
+                    onClick={shrink}
+                    className="p-1 rounded hover:bg-muted/80 text-muted-foreground min-w-[1.25rem] flex items-center justify-center"
+                    title="Shrink"
+                  >
+                    <span className="text-sm font-semibold leading-none select-none" aria-hidden>
+                      −
+                    </span>
                   </button>
                 )}
                 {onResize && sizeIdx < sizeOrder.length - 1 && (
-                  <button type="button" onClick={grow} className="p-1 rounded hover:bg-muted/80 text-muted-foreground" title="Grow">
-                    <Plus className="w-3 h-3" strokeWidth={2.5} />
+                  <button
+                    type="button"
+                    onClick={grow}
+                    className="p-1 rounded hover:bg-muted/80 text-muted-foreground min-w-[1.25rem] flex items-center justify-center"
+                    title="Grow"
+                  >
+                    <span className="text-sm font-semibold leading-none select-none" aria-hidden>
+                      +
+                    </span>
                   </button>
                 )}
                 {onHide && (
