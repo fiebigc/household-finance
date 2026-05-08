@@ -1084,6 +1084,7 @@ export const fileJsonAdapter: BackendAdapter = {
     await ensureLoaded();
     store.cardLayouts.set(`${layout.user_id}:${layout.tab}`, layout);
     schedulePersist();
+    await flushFileJsonPersistence();
   },
 };
 

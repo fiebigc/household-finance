@@ -17,6 +17,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useAppStore, type TabId } from "@/stores/appStore";
 import { useBackend } from "@/hooks/useBackend";
+import { getBoundLocalFileSession } from "@/adapter/fileJson";
 import type { CardSize, CardLayoutEntry } from "@/types/schema";
 import { cn } from "@/lib/utils";
 import { bentoLayoutsEquivalent, mergeCardLayoutWithDefinitions } from "@/utils/bentoCardLayout";
@@ -84,9 +85,12 @@ interface BentoGridProps {
 }
 
 export function BentoGrid({ tab, cards }: BentoGridProps) {
-  const { user, cardLayouts, setCardLayout } = useAppStore();
+  const { user, cardLayouts, setCardLayout, dataStorageMode } = useAppStore();
   const activeTabGlobal = useAppStore((s) => s.activeTab);
   const backend = useBackend();
+
+  const layoutUserId =
+    user?.id ?? (dataStorageMode === "file" ? getBoundLocalFileSession()?.user_id ?? null : null);
 
   const mergedLayout = useMemo(
     () =>
@@ -104,17 +108,20 @@ export function BentoGrid({ tab, cards }: BentoGridProps) {
   const persist = useCallback(
     (newLayout: CardLayoutEntry[]) => {
       setCardLayout(tab, newLayout);
-      if (user) {
-        backend.saveCardLayout({
-          id: `${user.id}:${tab}`,
-          user_id: user.id,
-          tab,
-          cards: newLayout,
-          updated_at: new Date().toISOString(),
-        }).catch(console.error);
+      const uid = layoutUserId;
+      if (uid) {
+        backend
+          .saveCardLayout({
+            id: `${uid}:${tab}`,
+            user_id: uid,
+            tab,
+            cards: newLayout,
+            updated_at: new Date().toISOString(),
+          })
+          .catch(console.error);
       }
     },
-    [tab, user, backend, setCardLayout],
+    [tab, layoutUserId, backend, setCardLayout],
   );
 
   useEffect(() => {

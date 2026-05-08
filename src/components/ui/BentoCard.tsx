@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { CardSize } from "@/types/schema";
-import { GripVertical, Maximize2, Minimize2, EyeOff, Pencil } from "lucide-react";
+import { GripVertical, Minus, Plus, EyeOff, Pencil } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 interface CardProps {
@@ -97,13 +97,13 @@ export function Card({
             {showControls && (onResize || onHide) && (
               <>
                 {onResize && sizeIdx > 0 && (
-                  <button onClick={shrink} className="p-1 rounded hover:bg-muted/80 text-muted-foreground" title="Shrink">
-                    <Minimize2 className="w-3 h-3" />
+                  <button type="button" onClick={shrink} className="p-1 rounded hover:bg-muted/80 text-muted-foreground" title="Shrink">
+                    <Minus className="w-3 h-3" strokeWidth={2.5} />
                   </button>
                 )}
                 {onResize && sizeIdx < sizeOrder.length - 1 && (
-                  <button onClick={grow} className="p-1 rounded hover:bg-muted/80 text-muted-foreground" title="Grow">
-                    <Maximize2 className="w-3 h-3" />
+                  <button type="button" onClick={grow} className="p-1 rounded hover:bg-muted/80 text-muted-foreground" title="Grow">
+                    <Plus className="w-3 h-3" strokeWidth={2.5} />
                   </button>
                 )}
                 {onHide && (
