@@ -231,15 +231,16 @@ export function FinanceFlowSankeyDiagram({
   }
 
   return (
-    <div className={cn("w-full", className)}>
-      <ResponsiveContainer width="100%" height={380} key={syntheticRoutingRemountKey}>
+    <div className={cn("w-full min-w-0", className)}>
+      <ResponsiveContainer width="100%" height={380} minWidth={0} key={syntheticRoutingRemountKey}>
         <Sankey
           data={data}
           nodeWidth={12}
           nodePadding={14}
           linkCurvature={0.5}
           iterations={64}
-          margin={{ top: 12, right: 120, bottom: 12, left: 120 }}
+          /** Narrow margins — labels sit beside nodes and extend inward; surface uses overflow visible. */
+          margin={{ top: 10, right: 12, bottom: 10, left: 12 }}
           link={FinanceFlowSankeyLink}
           node={<FinanceFlowSankeyNode />}
         >

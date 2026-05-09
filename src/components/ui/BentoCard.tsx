@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { CardSize } from "@/types/schema";
-import { GripVertical, EyeOff, Pencil } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { Move, EyeOff, Pencil } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 
 interface CardProps {
   title: string;
@@ -39,6 +39,21 @@ export function Card({
   dragHandleProps,
 }: CardProps) {
   const [showControls, setShowControls] = useState(false);
+  const [headerHovered, setHeaderHovered] = useState(false);
+  const [dragHandlePressed, setDragHandlePressed] = useState(false);
+
+  useEffect(() => {
+    if (!dragHandlePressed) return;
+    const end = () => setDragHandlePressed(false);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    return () => {
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+  }, [dragHandlePressed]);
+
+  const showDragHandle = Boolean(dragHandleProps && (headerHovered || dragHandlePressed));
   const sizeIdx = sizeOrder.indexOf(size);
 
   const grow = () => {
@@ -60,12 +75,29 @@ export function Card({
       onMouseLeave={() => setShowControls(false)}
     >
       {/* z-0: headline strip stays under semicircle gauges that extend upward from the body */}
-      <div className="relative z-0 shrink-0 rounded-t-bento border-b border-border/45 bg-muted/40 px-5 pt-4 pb-3">
+      <div
+        className="relative z-0 shrink-0 rounded-t-bento border-b border-border/45 bg-muted/40 px-5 pt-4 pb-3"
+        onMouseEnter={() => setHeaderHovered(true)}
+        onMouseLeave={() => setHeaderHovered(false)}
+      >
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             {dragHandleProps && (
-              <button {...dragHandleProps} className="touch-none cursor-grab text-muted-foreground/40 hover:text-muted-foreground transition-colors">
-                <GripVertical className="w-4 h-4" />
+              <button
+                type="button"
+                {...dragHandleProps}
+                onPointerDown={(e) => {
+                  setDragHandlePressed(true);
+                  (dragHandleProps.onPointerDown as ((ev: React.PointerEvent) => void) | undefined)?.(e);
+                }}
+                className={cn(
+                  "touch-none shrink-0 w-4 h-4 flex items-center justify-center rounded cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-transform duration-150 ease-out origin-center",
+                  !showDragHandle && "scale-0 pointer-events-none",
+                  "focus-visible:scale-100 focus-visible:pointer-events-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none",
+                )}
+                title="Drag to reorder"
+              >
+                <Move className="w-4 h-4" strokeWidth={2} aria-hidden />
               </button>
             )}
             {icon && <span className="shrink-0 text-primary">{icon}</span>}

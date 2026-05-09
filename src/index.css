@@ -111,6 +111,12 @@
     position: relative;
     z-index: 20;
   }
+
+  /* Expense donut: tooltips/rounded segments extend past plot box; don’t clip the chart shell. */
+  .card-content-layer .expense-pie-chart .recharts-responsive-container,
+  .card-content-layer .expense-pie-chart .recharts-wrapper {
+    overflow: visible !important;
+  }
 }
 
 @layer utilities {

@@ -637,14 +637,16 @@ function FlowDiagramCardContent() {
 
   return (
     <div className="space-y-4">
-      <FinanceFlowSankeyDiagram
-        cashflows={cashflows}
-        accounts={accounts}
-        syntheticIncomes={syntheticSankeyIncomes}
-        getIncomeFlowAmount={incomeFlowAmount}
-        referenceMonth={referenceMonth}
-        className="-mx-1"
-      />
+      {/* Full bleed inside card `px-5` so the sankey uses the full card width */}
+      <div className="-mx-5 min-w-0">
+        <FinanceFlowSankeyDiagram
+          cashflows={cashflows}
+          accounts={accounts}
+          syntheticIncomes={syntheticSankeyIncomes}
+          getIncomeFlowAmount={incomeFlowAmount}
+          referenceMonth={referenceMonth}
+        />
+      </div>
 
       <div className="grid grid-cols-3 gap-4 text-center">
         <div>

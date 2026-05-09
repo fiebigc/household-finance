@@ -28,9 +28,24 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
+import type { TooltipProps } from "recharts";
 import type { Cashflow } from "@/types/schema";
 
 const PIE_COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4", "#ec4899", "#6366f1"];
+
+function ExpensePieTooltip({ active, payload }: TooltipProps<number, string>) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0];
+  const name = row.name as string | undefined;
+  const value = typeof row.value === "number" ? row.value : Number(row.value);
+  if (name == null || !Number.isFinite(value)) return null;
+  return (
+    <div className="pointer-events-none -translate-y-3 rounded-lg border border-border/45 bg-background/50 px-2.5 py-1.5 text-[11px] leading-tight shadow-lg backdrop-blur-md backdrop-saturate-150">
+      <p className="font-medium text-card-foreground">{name}</p>
+      <p className="tabular-nums text-muted-foreground">{formatSEK(value)}</p>
+    </div>
+  );
+}
 
 function expenseListAmountLabel(c: Cashflow): string {
   if (c.direction === "expense" && c.amount < 0) return `+${formatSEK(Math.abs(c.amount))}`;
@@ -59,44 +74,53 @@ function breakdownPieBlock(
   const showPie = pieSlices.length > 0;
 
   return (
-    <div className="flex flex-col sm:flex-row items-center gap-4">
+    <div className="flex flex-col sm:flex-row sm:items-stretch gap-3 sm:gap-4 min-w-0">
       {showPie ? (
-        <ResponsiveContainer width="100%" height={180} className="sm:w-1/2 max-w-[240px] mx-auto sm:mx-0">
-          <PieChart>
-            <Pie
-              data={pieSlices}
-              cx="50%"
-              cy="50%"
-              outerRadius={70}
-              innerRadius={40}
-              dataKey="value"
-              paddingAngle={2}
-              cornerRadius={8}
-              minAngle={6}
-              strokeWidth={2}
-              stroke="hsl(0 0% 100%)"
-            >
-              {pieSlices.map((_, i) => (
-                <Cell key={i} fill={PIE_COLORS[(i + colorOffset) % PIE_COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip formatter={(v: number) => formatSEK(v)} contentStyle={{ borderRadius: "10px", fontSize: "12px" }} />
-          </PieChart>
-        </ResponsiveContainer>
+        <div className="expense-pie-chart w-full sm:flex-1 min-w-0 h-[220px] sm:h-[260px] sm:min-h-[240px] overflow-visible [&_.recharts-responsive-container]:!overflow-visible [&_.recharts-wrapper]:!overflow-visible mx-auto sm:mx-0 max-w-[min(100%,420px)] sm:max-w-none">
+          <ResponsiveContainer width="100%" height="100%" minHeight={200} minWidth={0}>
+            <PieChart margin={{ top: 16, right: 8, bottom: 8, left: 8 }}>
+              <Pie
+                data={pieSlices}
+                cx="50%"
+                cy="50%"
+                outerRadius="78%"
+                innerRadius="46%"
+                dataKey="value"
+                paddingAngle={1.5}
+                cornerRadius={8}
+                minAngle={0}
+                strokeWidth={1}
+                stroke="hsl(var(--card))"
+              >
+                {pieSlices.map((_, i) => (
+                  <Cell key={i} fill={PIE_COLORS[(i + colorOffset) % PIE_COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip
+                cursor={false}
+                content={<ExpensePieTooltip />}
+                allowEscapeViewBox={{ x: true, y: true }}
+                offset={0}
+                position={{ y: 0 }}
+                wrapperStyle={{ outline: "none", zIndex: 50 }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       ) : (
-        <p className="text-[11px] text-muted-foreground text-center sm:w-1/2 py-6 px-2">
+        <p className="text-[11px] text-muted-foreground text-center sm:flex-1 py-6 px-2 min-w-0">
           Nothing to draw as slices (nets may be zero or negative after refunds).
         </p>
       )}
-      <div className="flex-1 w-full space-y-1.5 min-w-0">
+      <div className="flex-1 w-full space-y-0 min-w-0 sm:min-w-[120px] self-center text-[10px] leading-tight">
         {chartData.slice(0, 8).map((d, i) => (
-          <div key={d.name} className="flex items-center gap-2 text-xs">
+          <div key={d.name} className="flex items-center gap-1.5 py-0.5 border-b border-border/15 last:border-0">
             <div
-              className="w-2.5 h-2.5 rounded-full shrink-0"
+              className="w-2 h-2 rounded-full shrink-0"
               style={{ backgroundColor: PIE_COLORS[(i + colorOffset) % PIE_COLORS.length] }}
             />
-            <span className="text-muted-foreground flex-1 truncate">{d.name}</span>
-            <span className="tabular-nums shrink-0">{formatSEK(d.value)}</span>
+            <span className="text-muted-foreground flex-1 min-w-0 truncate">{d.name}</span>
+            <span className="tabular-nums shrink-0 text-card-foreground/90">{formatSEK(d.value)}</span>
           </div>
         ))}
       </div>
