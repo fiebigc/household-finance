@@ -9,7 +9,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && node packaging/vite-spa-build.mjs",
     "build:desktop": "npm run desktop:build",
     "build:webkit": "tsc -b && vite build --config vite.webkit.config.ts --mode webkit",
     "preview": "vite preview",
