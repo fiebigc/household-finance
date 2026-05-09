@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:desktop": "npm run desktop:build",
     "build:webkit": "tsc -b && vite build --config vite.webkit.config.ts --mode webkit",
     "preview": "vite preview",
     "dev:webkit": "vite --config vite.webkit.config.ts --mode webkit --port 5173 --strictPort",
